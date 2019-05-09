@@ -2,9 +2,15 @@
 ## Designed and created by Timo Millenaar (tmillenaar@gmail.com)
 
 import math
+import os
 import matplotlib.pyplot as plt
 
 from functions_for_ISMoLD import *
+
+try:
+    os.system('rm ISMolD_outputdata/topography*.txt') ##remove old data files
+except:
+    pass
 
 yr2sec = 60*60*24*365.25
 dx= 1.e3       # lateral grid spacing (m)
@@ -12,11 +18,14 @@ dy = 1         # vertical grid spacing (m)
 imax= 101      # number of nodes
 totalHeight= list(range(imax+1))
 newHeight= list(range(imax+1))
+x=list(range(imax+1))
 t= 0
 dt= 1          # time step in (yr)
-tmax= 10000*yr2sec     # max number of years
-dtout = 10*yr2sec     # nr of years between write output
+tmax= 100000*yr2sec     # max number of years
+dtout = tmax/100     # nr of years between write output
+dtout_progress = 10*yr2sec     # nr of years between progress bar update
 tout = 0.          # threshold to write next output in years (increased every write action by dtout)
+tout_progress = 0.          # threshold to update progress bar
 tprogress = 0.
 dtprogress = tmax/1000. 
 k= list(range(3))
@@ -40,6 +49,7 @@ maxVolumeLoss = 0
 ## Initialize:
 columns = {}
 for i in range(imax+1):
+    x[i]=i
     totalHeight[i] = 0
     columns[i]= {"height":0,
                  "nodes":{}
@@ -51,11 +61,12 @@ for i in range(imax+1):
 while (t < tmax):
     
     dt = 0.9*(dx*dx)/(2.e0*(max(k)))
-    q0[0] = 2.e-5*math.sin(3.1415 * t/tmax)
+    q0[0] = max(0, 2.e-6*math.sin(3.1415 * 6* t/tmax))
+    
     #dt = min(tmax/1000, 0.9*(dx*dx)/(2.e0*(k[0])) )
-    if t > tout:
+    if t > tout_progress:
         print("      "+str( (math.ceil(100000*t/tmax))/1000 )+"%", end="\r") ##Track progress
-        tout += dtout
+        tout_progress += dtout_progress
     
     ## Set boundary condition at proximal end of the basin:
     
@@ -99,6 +110,17 @@ while (t < tmax):
     for i in range(0,imax):
         columns[i]["height"] = newHeight[i]
     
+    
+    if (t >= tout):
+        n= int(tout/dtout)
+        f = open("ISMolD_outputdata/topography"+str(n)+".txt", "w")
+        for i in range(len(x)):
+            f.write(str(x[i])+" "+str(columns[i]["height"])+"\n")
+        f.close()
+        #call writeOutput(n, imax, x, hn, bedrock, totalHeight)
+        tout = tout + dtout
+    
+    
     t += dt
     
 
@@ -108,9 +130,7 @@ while (t < tmax):
 
 totalDepositVolume= 0
 totalNodeVolume= 0
-x=list(range(imax+1))
 for i in range(imax+1):
-    x[i]=i
     totalHeight[i]= columns[i]["height"]
     totalDepositVolume+= columns[i]["height"]*dx
     for j in range(0,len(columns[i]["nodes"])):
@@ -133,8 +153,10 @@ print("Node volume error:", str(totalNodeVolume+totalOutput-totalInput)+"m^3")
 print("Node volume error in %:", str(100*(totalNodeVolume+totalOutput-totalInput)/totalInput)+"%")
 print("")
 print("Plotting...")
-plt.plot(x, totalHeight)
-plt.show()
+#plt.plot(x, totalHeight)
+#plt.show()
+
+os.system("python3 animate_ISMoLD.py")
 
 
     
