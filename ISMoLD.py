@@ -28,30 +28,30 @@ def setNodes(i, k, newHeight, column, dt, dx, dy, rho0):
                 if (current_box_density+ rho0 *(dh) >= rho0):
                     column["nodes"].update({j-1:{"density":rho0}})
                     remainder = current_box_density+ rho0 *(dh) -rho0
-                    print(1,remainder)
+                    #print(1,remainder)
                     column["nodes"].update({j:{"density":( remainder )}})
                 else:
                     remainder = current_box_density+ rho0 *(dh)
-                    print(2,remainder)
+                    #print(2,remainder)
                     column["nodes"].update({j:{"density":remainder}})
             else:
-                print('yep')
+                #print('yep')
                 column["nodes"].update({j:{"density":rho0}})
                 
     else:  ## Erosion
         #starting_box_density = dy * column["nodes"][ math.ceil(column["height"]) ]["density"]
         #print(math.ceil(column["height"]), math.floor(newHeight[i]))
-        print("start")
-        for j in range(math.floor(column["height"]), math.floor(newHeight[i]), -1):
-            print(j)
-            if (j == math.ceil( column["height"] )):
-                if (j==math.ceil( newHeight[i] )-1): ## In the usual case that the first j is also the last
+        #print("start")
+        for j in range(math.floor(column["height"]), math.floor(newHeight[i])-1, -1):
+            #print(j)
+            if (j == math.floor( column["height"] )):
+                if (j==math.floor( newHeight[i] )): ## In the usual case that the first j is also the last
                     dh = column["height"] - newHeight[i]
                 else:
                     dh = column["height"] - math.floor( column["height"] )
             else:
-                if (j==math.ceil( newHeight[i] )-1): ## If current j is final j
-                    dh = j - newHeight[i] 
+                if (j==math.floor( newHeight[i] )): ## If current j is final j
+                    dh = math.ceil( newHeight[i] ) - newHeight[i]
                 else:
                     dh = dy
                     
@@ -60,22 +60,23 @@ def setNodes(i, k, newHeight, column, dt, dx, dy, rho0):
             except:
                 current_box_density = 0
                     
-            if (j==math.floor( newHeight[i] )+1): ## In the usual case that not more then one dy is removed in height this timestep
-                if (rho0 *(dh) >= current_box_density):
-                    try:
-                        del column["nodes"][j]
-                    except:
-                        pass
-                    remainder = rho0*( dh ) - current_box_density
-                    #print(1, remainder, rho0*( j-newHeight[i] ), -current_box_density)
-                    column["nodes"].update({j-1:{"density":remainder}})
-                else:
-                    remainder = current_box_density - rho0*( dh )
-                    #print(2, remainder, rho0*( j-newHeight[i] ), -current_box_density)
-                    column["nodes"].update({j:{"density":remainder}})
+            if (j==math.floor( newHeight[i] )): ## Final j
+                #if (rho0 *(dh) >= current_box_density):
+                    #try:
+                        #del column["nodes"][j]
+                    #except:
+                        #pass
+                    #remainder = rho0*( dh ) - current_box_density
+                    ##print(1, remainder, rho0*( j-newHeight[i] ), -current_box_density)
+                    #column["nodes"].update({j-1:{"density":remainder}})
+                #else:
+                remainder = current_box_density - rho0*( dh )
+                #print(2, remainder, rho0*( j-newHeight[i] ), -current_box_density)
+                column["nodes"].update({j:{"density":remainder}})
             else:
                 try:
                     del column["nodes"][j]
+                    #print("removed node "+str(j), math.floor( newHeight[i] ))
                 except:
                     pass
     return column
