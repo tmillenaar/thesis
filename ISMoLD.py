@@ -2,47 +2,82 @@
 ## Designed and created by Timo Millenaar (tmillenaar@gmail.com)
 
 def setNodes(i, k, newHeight, column, dt, dx, dy, rho0):
+    
     if (newHeight[i] >= column["height"]):  ## Deposition
         dispose_density = ( newHeight[i] - column["height"] ) * dx
         j = math.floor( column["height"] )
         
         for j in range (math.floor( column["height"] ), math.ceil( newHeight[i] )):
-            #print(j, math.ceil( newHeight[i]))
             if (j == math.floor( column["height"]) ):
-                try: 
-                    starting_box_density = dy * column["nodes"][j]["density"]
-                except:
-                    starting_box_density= 0
+                if (j==math.ceil( newHeight[i] )-1): ## In the usual case that the first j is also the last
+                    dh = newHeight[i] - column["height"]
+                else:
+                    dh = math.ceil( column["height"]) - column["height"]
+            else:
+                if (j==math.ceil( newHeight[i] )-1): ## If current j is final j
+                    dh = newHeight[i]-j
+                else:
+                    dh = dy
+            
+            try:
+                current_box_density = dy * column["nodes"][j]["density"]
+            except:
+                current_box_density = 0
                 
-                if (j==math.ceil( newHeight[i] )-1): ## In the usual case that not more then one dy is added in height this timestep
-                    if (starting_box_density+ rho0 *(newHeight[i]-column["height"]) > rho0):
-                        #if i==1:
-                            #print(starting_box_density)
-                        column["nodes"].update({j-1:{"density":rho0}})
-                        remainder = starting_box_density+ rho0 *(newHeight[i]-column["height"]) -rho0
-                        column["nodes"].update({j:{"density":( remainder )}})
-                    else:
-                        remainder = starting_box_density+ rho0 *(newHeight[i]-column["height"])
-                        column["nodes"].update({j:{"density":remainder}})
-                    
-            elif (j==math.ceil( newHeight[i] )-1):
-                if (starting_box_density+ rho0 *(newHeight[i]-column["height"]) > rho0):
-                    #print("This should not have happened either!!", j)
+            if (j==math.ceil( newHeight[i] )-1): ## Final j
+                if (current_box_density+ rho0 *(dh) >= rho0):
                     column["nodes"].update({j-1:{"density":rho0}})
-                    #print("starting_box_density "+str(starting_box_density))
-                    #print("nr"+str(starting_box_density/rho0 + j-newHeight[i])+" "+str(starting_box_density/rho0)+" "+str(j-newHeight[i]))
-                    remainder = starting_box_density+ rho0 *(newHeight[i]-column["height"]) -rho0
+                    remainder = current_box_density+ rho0 *(dh) -rho0
+                    print(1,remainder)
                     column["nodes"].update({j:{"density":( remainder )}})
                 else:
-                    print("oh no!")
-                    remainder = starting_box_density+ rho0 *(newHeight[i]-column["height"])
-                    column["nodes"].update({j:{"density":( remainder )}})
+                    remainder = current_box_density+ rho0 *(dh)
+                    print(2,remainder)
+                    column["nodes"].update({j:{"density":remainder}})
             else:
+                print('yep')
                 column["nodes"].update({j:{"density":rho0}})
                 
     else:  ## Erosion
-        for j in range(math.floor(newHeight[i]), math.ceil(column["height"])+1):
-            del column["nodes"][j]
+        #starting_box_density = dy * column["nodes"][ math.ceil(column["height"]) ]["density"]
+        #print(math.ceil(column["height"]), math.floor(newHeight[i]))
+        print("start")
+        for j in range(math.floor(column["height"]), math.floor(newHeight[i]), -1):
+            print(j)
+            if (j == math.ceil( column["height"] )):
+                if (j==math.ceil( newHeight[i] )-1): ## In the usual case that the first j is also the last
+                    dh = column["height"] - newHeight[i]
+                else:
+                    dh = column["height"] - math.floor( column["height"] )
+            else:
+                if (j==math.ceil( newHeight[i] )-1): ## If current j is final j
+                    dh = j - newHeight[i] 
+                else:
+                    dh = dy
+                    
+            try:
+                current_box_density = dy * column["nodes"][j]["density"]
+            except:
+                current_box_density = 0
+                    
+            if (j==math.floor( newHeight[i] )+1): ## In the usual case that not more then one dy is removed in height this timestep
+                if (rho0 *(dh) >= current_box_density):
+                    try:
+                        del column["nodes"][j]
+                    except:
+                        pass
+                    remainder = rho0*( dh ) - current_box_density
+                    #print(1, remainder, rho0*( j-newHeight[i] ), -current_box_density)
+                    column["nodes"].update({j-1:{"density":remainder}})
+                else:
+                    remainder = current_box_density - rho0*( dh )
+                    #print(2, remainder, rho0*( j-newHeight[i] ), -current_box_density)
+                    column["nodes"].update({j:{"density":remainder}})
+            else:
+                try:
+                    del column["nodes"][j]
+                except:
+                    pass
     return column
 
 import math
@@ -56,7 +91,7 @@ totalHeight= list(range(imax+1))
 newHeight= list(range(imax+1))
 t= 0
 dt= 1          # time step in (yr)
-tmax= 100000*yr2sec     # max number of years
+tmax= 1000*yr2sec     # max number of years
 dtout = 10*yr2sec     # nr of years between write output
 tout = 0.          # threshold to write next output in years (increased every write action by dtout)
 tprogress = 0.
@@ -72,7 +107,7 @@ q0[2]= 0           # silt input (m2/s)
 
 rho0 = 2700
 
-totalInput= 0
+totalInput= 100*dx
 totalOutput= 0
 subsidence_rate = 0.#4e-4*dt/3 #m/yr
 maxVolumeLoss = 0
@@ -123,6 +158,11 @@ while (t < tmax):
         else:
             newHeight[i]= newHeight[i] - ( (Dmh*dt)/(dx*dx) )*( columns[i]["height"] - columns[i-1]["height"] )
         
+        if (i==70 and t==0): 
+            newHeight[70] = 100
+            for p in range(100):
+                columns[70]["nodes"].update({p:{"density":rho0}})
+            #print(columns[70])
         columns[i] = setNodes(i, k, newHeight, columns[i], dt, dx, dy, rho0)
         
     ## Set nodes in proximal boundary column:
@@ -156,7 +196,7 @@ for i in range(imax+1):
             pass
     
     
-print(columns[0])
+print(columns[70])
 print("totalInput:", str(totalInput)+"m^3")
 print("totalOutput:", str(totalOutput)+"m^3")
 print("totalDepositVolume:", str(totalDepositVolume)+"m^3")
@@ -170,7 +210,7 @@ print("Node volume error in %:", str(100*(totalNodeVolume+totalOutput-totalInput
 print("")
 print("Plotting...")
 plt.plot(x, totalHeight)
-plt.show()
+#plt.show()
 
 
     
