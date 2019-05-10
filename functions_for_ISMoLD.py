@@ -2,14 +2,14 @@ import math
 
 def setNodes(i, k, newHeight, column, dt, dx, dy, rho0):
     
-    if (newHeight >= column["height"]):  ## Deposition
+    if (newHeight >= column["totalHeight"]):  ## Deposition
         
-        for j in range (math.floor( column["height"] ), math.ceil( newHeight )):
-            if (j == math.floor( column["height"]) ): ## Start j
+        for j in range (math.floor( column["totalHeight"] ), math.ceil( newHeight )):
+            if (j == math.floor( column["totalHeight"]) ): ## Start j
                 if (j==math.ceil( newHeight )-1): ## In the usual case that the first j is also the last
-                    dh = newHeight - column["height"]
+                    dh = newHeight - column["totalHeight"]
                 else:
-                    dh = math.ceil( column["height"]) - column["height"]
+                    dh = math.ceil( column["totalHeight"]) - column["totalHeight"]
             else:
                 if (j==math.ceil( newHeight )-1): ## If current j is final j
                     dh = newHeight-j
@@ -17,7 +17,7 @@ def setNodes(i, k, newHeight, column, dt, dx, dy, rho0):
                     dh = dy ## not nesecary actually, but this is effectively the case when a whole node is set from 0 to rho0
             
             try:
-                current_box_density = dy * column["nodes"][j]["density"]
+                current_box_density = column["nodes"][j]["density"]
             except:
                 current_box_density = 0
                 
@@ -34,13 +34,13 @@ def setNodes(i, k, newHeight, column, dt, dx, dy, rho0):
                 
     else:  ## Erosion
 
-        for j in range(math.floor(column["height"]), math.floor(newHeight)-1, -1): ## loop from top down
+        for j in range(math.floor(column["totalHeight"]), math.floor(newHeight)-1, -1): ## loop from top down
             
-            if (j == math.floor( column["height"] )): ## Start j
+            if (j == math.floor( column["totalHeight"] )): ## Start j
                 if (j==math.floor( newHeight )): ## In the usual case that the first j is also the last
-                    dh = column["height"] - newHeight
+                    dh = column["totalHeight"] - newHeight
                 else:
-                    dh = column["height"] - math.floor( column["height"] )
+                    dh = column["totalHeight"] - math.floor( column["totalHeight"] )
             else:
                 if (j==math.floor( newHeight )): ## If current j is final j
                     dh = math.ceil( newHeight ) - newHeight
@@ -48,7 +48,7 @@ def setNodes(i, k, newHeight, column, dt, dx, dy, rho0):
                     dh = dy
                     
             try:
-                current_box_density = dy * column["nodes"][j]["density"]
+                current_box_density = column["nodes"][j]["density"]
             except:
                 current_box_density = 0
                     

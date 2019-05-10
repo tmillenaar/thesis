@@ -6,14 +6,15 @@ from matplotlib.animation import FuncAnimation
 from os import listdir
 
 
-nr_frames = len(listdir("ISMolD_outputdata/"))-1 #-1 since file starts at 'output0' and -1 for the 'old' directory
+nr_frames = len(listdir("ISMolD_outputdata/"))-1 #-1 since file starts at 'output0', add -1 for amy subdirectory
 
 lowerBound = 0
 upperBound = 0
 for i in range (nr_frames):
-    data = np.loadtxt('ISMolD_outputdata/topography'+str(nr_frames)+'.txt')
+    data = np.loadtxt('ISMolD_outputdata/topography'+str(i)+'.txt')
     lowerBound = min(lowerBound, min(data[:,1]-10))
-    upperBound = max(upperBound, max(data[:,1]+60))
+    upperBound = max(upperBound, max(data[:,1]+20))
+    
 #data = np.delete(data, (0), axis=0)
 
 fig, ax = plt.subplots()
@@ -51,6 +52,7 @@ def update(i):
 if __name__ == '__main__':
     # FuncAnimation will call the 'update' function for each frame; here
     # animating over 10 frames, with an interval of 200ms between frames.
+    print("Plotting...")
     anim = FuncAnimation(fig, update, frames=np.arange(0, nr_frames), interval=50)
     plt.legend(loc=1, borderaxespad=0.)
     #anim.save('test.gif', dpi=80, writer='imagemagick')
