@@ -32,10 +32,10 @@ tout_progress = 0.          # threshold to update progress bar
 tprogress = 0.
 dtprogress = tmax/1000. 
 k= list(range(2))
-k[0]= 3.2e-5       # Gravel diffusivity (m2/s)
+k[0]= 5*3.2e-5       # Gravel diffusivity (m2/s)
 k[1]= 3.2e-4       # Sand diffusivity (m2/s)
 q0= list(range(2))
-q0[0]= 2.e-6      # Gravel input (m2/s)
+q0[0]= 4.e-6      # Gravel input (m2/s)
 q0[1]= 2.e-6      # Sand input (m2/s)
 
 rho0 = dy * 2700
@@ -89,7 +89,6 @@ while (t < tmax):
     for p in range(2):
         totalInput+= q0[p]*dt
         totalOutput+= ( (k[p]*dt)/(dx*dx) )*( columns[imax-1]["totalHeight"] - columns[imax]["totalHeight"] )*dx ## Volume leaving = height*dx at i=imax, which is set to 0
-        print(0, columns[0]["totalHeight"], sedIncrease[p,0], columns[0]["TotalSedContent"][p])
     ## Loop through columns (for FTCS, density calculations, etc):
     for i in range(1,imax):
         newHeight[i]= columns[i]["totalHeight"] ##Start from current height
@@ -108,7 +107,6 @@ while (t < tmax):
                 #newHeight[1]= newHeight[1] - ( (Dmh*dt)/(dx*dx) )*( columns[1]["totalHeight"] - columns[0]["totalHeight"]-q0[p]*dt/dx ) 
             else:
                 sedIncrease[p,i] = sedIncrease[p,i] - ( (Dmh*dt)/(dx*dx) )*( columns[i]["totalHeight"] - columns[i-1]["totalHeight"] )
-            print(i, columns[i]["totalHeight"], sedIncrease[p,i], columns[i]["TotalSedContent"][p])
             sedIncrease[p,i] = min(sedIncrease[p,i], columns[i-1]["TotalSedContent"][p])
             newSedContent[p,i] += sedIncrease[p,i]
             newHeight[i] += sedIncrease[p,i]
@@ -127,7 +125,8 @@ while (t < tmax):
     for p in range(2):
         sedIncrease[p,0] = sedIncrease[p,0] - ( (k[p]*dt)/(dx*dx) )*( columns[0]["totalHeight"]+q0[p]*dt/dx - columns[1]["totalHeight"] )
         sedIncrease[p,0] = max(sedIncrease[p,0], -columns[0]["TotalSedContent"][p])
-        columns[0]["TotalSedContent"][p] += sedIncrease[p,0]- q0[p]*dt/dx ## q0 is added before FTCS to both sedIncrease and "TotalSedContent". q0 should not be added twice so it is subtracted once here.
+        newSedContent[p,0] += sedIncrease[p,0] 
+        #columns[0]["TotalSedContent"][p] += sedIncrease[p,0]- q0[p]*dt/dx ## q0 is added before FTCS to both sedIncrease and "TotalSedContent". q0 should not be added twice so it is subtracted once here.
         newHeight[0] += sedIncrease[p,0]
     columns[0] = setNodes(0, k, newHeight[0], columns[0], dt, dx, dy, rho0)
     
@@ -142,7 +141,7 @@ while (t < tmax):
         n= int(tout/dtout)
         f = open("ISMolD_outputdata/topography"+str(n)+".txt", "w")
         for i in range(len(x)):
-            f.write(str(x[i])+" "+str(columns[i]["totalHeight"])+"\n")
+            f.write(str(x[i])+" "+str(columns[i]["totalHeight"])+" "+str(columns[i]["TotalSedContent"][0])+" "+str(columns[i]["TotalSedContent"][1])+"\n")
         f.close()
         #call writeOutput(n, imax, x, hn, bedrock, totalHeight)
         tout = tout + dtout
@@ -168,7 +167,7 @@ for i in range(imax+1):
             pass
     
     
-print(columns[1]["TotalSedContent"], sum(columns[1]["TotalSedContent"]), totalHeight[1])
+print(columns[0]["TotalSedContent"], sum(columns[0]["TotalSedContent"]), totalHeight[0])
 print("totalInput:", str(totalInput)+"m^3")
 print("totalOutput:", str(totalOutput)+"m^3")
 print("totalDepositVolume:", str(totalDepositVolume)+"m^3")

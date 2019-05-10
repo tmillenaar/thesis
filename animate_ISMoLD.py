@@ -30,8 +30,8 @@ plt.ylabel('Height in m')
 
 totalHeight, = ax.plot(data[:,0], data[:,1], 'b-', linewidth=3, label='Relief')
 #bedrock, = ax.plot(data[:,0], data[:,4], 'r-', linewidth=3, label='Basement')
-#gravel, = ax.plot(data[:,0], data[:,3], 'green', linewidth=2, label='Gravel')
-#sand, = ax.plot(data[:,0], data[:,2], 'orange', linewidth=2, label='Sand')
+gravel, = ax.plot(data[:,0], data[:,2], 'green', linewidth=2, label='Gravel')
+sand, = ax.plot(data[:,0], data[:,3], 'orange', linewidth=2, label='Sand')
 #silt, = ax.plot(data[:,0], data[:,1], 'purple', linewidth=2)
 
 def update(i):
@@ -42,8 +42,8 @@ def update(i):
     # "artists" that have to be redrawn for this frame.
     data = np.loadtxt('ISMolD_outputdata/topography'+str(i)+'.txt')
     totalHeight.set_ydata(data[:,1])
-    #gravel.set_ydata(data[:,3])
-    #sand.set_ydata(data[:,2])
+    gravel.set_ydata(data[:,2])
+    sand.set_ydata(data[:,3])
     #bedrock.set_ydata(data[:,4])
     #silt.set_ydata(data[:,1])
     ax.set_title(label)
