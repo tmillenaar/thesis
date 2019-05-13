@@ -2,14 +2,14 @@ import math
 
 def setNodes(i, k, newHeight, column, dt, dx, dy, rho0):
     
-    if (newHeight >= column["totalHeight"]):  ## Deposition
+    if (newHeight >= column["oldHeight"]):  ## Deposition
         
-        for j in range (math.floor( column["totalHeight"] ), math.ceil( newHeight )):
-            if (j == math.floor( column["totalHeight"]) ): ## Start j
+        for j in range (math.floor( column["oldHeight"] ), math.ceil( newHeight )):
+            if (j == math.floor( column["oldHeight"]) ): ## Start j
                 if (j==math.ceil( newHeight )-1): ## In the usual case that the first j is also the last
-                    dh = newHeight - column["totalHeight"]
+                    dh = newHeight - column["oldHeight"]
                 else:
-                    dh = math.ceil( column["totalHeight"]) - column["totalHeight"]
+                    dh = math.ceil( column["oldHeight"]) - column["oldHeight"]
             else:
                 if (j==math.ceil( newHeight )-1): ## If current j is final j
                     dh = newHeight-j
@@ -34,13 +34,13 @@ def setNodes(i, k, newHeight, column, dt, dx, dy, rho0):
                 
     else:  ## Erosion
 
-        for j in range(math.floor(column["totalHeight"]), math.floor(newHeight)-1, -1): ## loop from top down
+        for j in range(math.floor(column["oldHeight"]), math.floor(newHeight)-1, -1): ## loop from top down
             
-            if (j == math.floor( column["totalHeight"] )): ## Start j
+            if (j == math.floor( column["oldHeight"] )): ## Start j
                 if (j==math.floor( newHeight )): ## In the usual case that the first j is also the last
-                    dh = column["totalHeight"] - newHeight
+                    dh = column["oldHeight"] - newHeight
                 else:
-                    dh = column["totalHeight"] - math.floor( column["totalHeight"] )
+                    dh = column["oldHeight"] - math.floor( column["totalHeight"] )
             else:
                 if (j==math.floor( newHeight )): ## If current j is final j
                     dh = math.ceil( newHeight ) - newHeight

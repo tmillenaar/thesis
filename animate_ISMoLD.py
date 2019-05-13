@@ -20,6 +20,7 @@ for i in range (nr_frames):
 fig, ax = plt.subplots()
 fig.set_tight_layout(True)
 plt.ylim(lowerBound, upperBound)
+plt.grid(color='black', linestyle=(0, (1, 10)), linewidth=1)
 plt.xlabel('Distance from source in km')
 plt.ylabel('Height in m')
 
@@ -27,7 +28,6 @@ plt.ylabel('Height in m')
 # a file, we need to provide a DPI for that separately.
 
 # Plot a scatter that persists (isn't redrawn) and the initial line.
-
 totalHeight, = ax.plot(data[:,0], data[:,1], 'b-', linewidth=3, label='Relief')
 #bedrock, = ax.plot(data[:,0], data[:,4], 'r-', linewidth=3, label='Basement')
 gravel, = ax.plot(data[:,0], data[:,2], 'green', linewidth=2, label='Gravel')
@@ -52,7 +52,6 @@ def update(i):
 if __name__ == '__main__':
     # FuncAnimation will call the 'update' function for each frame; here
     # animating over 10 frames, with an interval of 200ms between frames.
-    print("Plotting...")
     anim = FuncAnimation(fig, update, frames=np.arange(0, nr_frames), interval=50)
     plt.legend(loc=1, borderaxespad=0.)
     #anim.save('test.gif', dpi=80, writer='imagemagick')
