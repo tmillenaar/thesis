@@ -14,12 +14,28 @@ spikeTest = False
 
 ##Uncomment if not desired
 plot = True 
-#spikeTest = True
+spikeTest = True
 
-yr2sec = 60*60*24*365.25
-dx= 1.e3       # lateral grid spacing (m)
-dy = 1         # vertical grid spacing (m)  Important: MUST BE 1(as integer)!
-imax= 101      # number of nodes
+yr2sec = 60*60*24*365.25    #nr of seconds in a year
+
+dx= 1.e3                    # lateral grid spacing (m)
+imax= 101                   # number of nodes
+tmax= 10000*yr2sec          # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+dtout = tmax/100            # nr of years between write output
+dtout_progress = 10*yr2sec  # nr of years between progress bar update
+nrOfGrainSizes = 2
+k= list(range(nrOfGrainSizes))
+k[0]= 3.2e-4                # Gravel diffusivity (m2/s)
+k[1]= 4*3.2e-4              # Sand diffusivity (m2/s)
+q0= list(range(nrOfGrainSizes))
+q0[0]= 2.e-6                # Gravel input (m2/s)
+q0[1]= 1.e-6                # Sand input (m2/s)
+
+rho0 = 2700
+
+subsidence_rate = 0.#4e-4*dt/3 #m/yr
+
+## Initialize:
 totalHeight= list(range(imax+1))
 newHeight= list(range(imax+1))
 x=list(range(imax+1))
@@ -27,31 +43,31 @@ sedIncrease = np.zeros(shape=(2,imax+1))
 sedIn = np.zeros(shape=(2,imax+1))
 sedOut = np.zeros(shape=(2,imax+1))
 newSedContent = np.zeros(shape=(2,imax+1))
-t= 0
-dt= 1          # time step in (yr)
-tmax= 10000*yr2sec     # max number of years in seconds (x*yr2sec)
-dtout = tmax/100     # nr of years between write output
-dtout_progress = 10*yr2sec     # nr of years between progress bar update
+
+dy = 1         # vertical grid spacing (m)  Important: MUST BE 1(as integer)!
+
 tout = 0.          # threshold to write next output in years (increased every write action by dtout)
 tout_progress = 0.          # threshold to update progress bar
 tprogress = 0.
-dtprogress = tmax/1000. 
-k= list(range(2))
-k[0]= 3.2e-4       # Gravel diffusivity (m2/s)
-k[1]= 4*3.2e-4       # Sand diffusivity (m2/s)
-q0= list(range(2))
-q0[0]= 2.e-6      # Gravel input (m2/s)
-q0[1]= 1.e-6      # Sand input (m2/s)
-
-rho0 = dy * 2700
 
 totalInput= 0
 totalOutput= 0
 InputPerGrainSize = [0,0]
 OutputPerGrainSize = [0,0]
-subsidence_rate = 0.#4e-4*dt/3 #m/yr
 maxVolumeLoss = 0
 
+columns = {}
+for i in range(imax+1):
+    x[i]=i
+    totalHeight[i] = 0
+    columns[i]= {"totalHeight":0,
+                 "TotalSedContent":list(range(nrOfGrainSizes)),
+                 "nodes":{},
+                 }
+    for p in range(nrOfGrainSizes):
+        columns[i]["TotalSedContent"][p] = 0
+        newSedContent[p,i]= 0
+        
 
 ## Remove old data files
 #     Note: "listdir" returns the number of files in the folder. ...
@@ -60,46 +76,35 @@ outputfilesNr = len(listdir("ISMolD_outputdata/"))-1
 if (outputfilesNr >= 0):
     os.system('rm ISMolD_outputdata/topography*.txt')
 
-## Initialize:
-columns = {}
-for i in range(imax+1):
-    x[i]=i
-    totalHeight[i] = 0
-    columns[i]= {"totalHeight":0,
-                 "TotalSedContent":list(range(2)),
-                 "nodes":{},
-                 }
-    for p in range(2):
-        columns[i]["TotalSedContent"][p] = 0
-        newSedContent[p,i]= 0
-
 ## Spike test:
 #  Note: the code cannot properly deal with intense spikes of 1 (except for i==0), thus the the spike is 2*dx wide.
 if (spikeTest):
-        
-    totalInput+= 100*dx
-    for p in range(2):
-        InputPerGrainSize[p] += 50*dx
+    spikeHeight = 100
+    spikeLocation = 50
+    totalInput+= spikeHeight*dx
+    for p in range(nrOfGrainSizes):
+        InputPerGrainSize[p] += dx*spikeHeight/2
         q0[p] = 0
-    columns[50]["totalHeight"] = 100
-    columns[50]["TotalSedContent"][0] = 50
-    columns[50]["TotalSedContent"][1] = 50
-    for q in range(100):
-        columns[50]["nodes"].update({q:{"density":rho0}})
+    columns[spikeLocation]["totalHeight"] = spikeHeight
+    columns[spikeLocation]["TotalSedContent"][0] = spikeHeight/2
+    columns[spikeLocation]["TotalSedContent"][1] = spikeHeight/2
+    for q in range(spikeHeight):
+        columns[spikeLocation]["nodes"].update({q:{"density":rho0}})
 
-    totalInput+= 100*dx
-    for p in range(2):
-        InputPerGrainSize[p] += 50*dx
-    columns[51]["totalHeight"] = 100
-    columns[51]["TotalSedContent"][0] = 50
-    columns[51]["TotalSedContent"][1] = 50
-    for q in range(100):
-        columns[51]["nodes"].update({q:{"density":rho0}})
+    totalInput+= spikeHeight*dx
+    for p in range(nrOfGrainSizes):
+        InputPerGrainSize[p] += dx*spikeHeight/2
+    columns[spikeLocation+1]["totalHeight"] = spikeHeight
+    columns[spikeLocation+1]["TotalSedContent"][0] = spikeHeight/2
+    columns[spikeLocation+1]["TotalSedContent"][1] = spikeHeight/2
+    for q in range(spikeHeight):
+        columns[spikeLocation+1]["nodes"].update({q:{"density":rho0}})
 
 
 ## ## ## ## ## ## ## ##
 ##  Main time loop:  ##
 ## ## ## ## ## ## ## ##
+t= 0
 while (t < tmax):
     
     ## Varying sediment input or diffusivity through time can be set here:
@@ -107,7 +112,7 @@ while (t < tmax):
     
     ## Calculating max dt as limited by the active layer and the FTCS scheme
     dtFTCS = 0.9*(dx*dx)/(2.e0*(sum(k))) ##FTCS
-    heightDiff = columns[0]["totalHeight"]+sum(q0)*dt/dx-columns[1]["totalHeight"]
+    heightDiff = columns[0]["totalHeight"]+sum(q0)*dtFTCS/dx-columns[1]["totalHeight"] ## dtFTCS is used as an estimation on the high side. It is better to estimate more sediment input resulting in a high slope then it is to estimate on the low side. A too low estimate of the sediment input can lead to an amount of sediment being removed somewhere that is more the the depth of the active layer. Higher estimates of q0 result in lowe dt and thus a slower run speed.
     for i in range(1,imax):
         heightDiff = max(heightDiff, abs(columns[i+1]["totalHeight"] - 2*columns[i]["totalHeight"] + columns[i-1]["totalHeight"]) )
     dtHeightLimit = 0
@@ -124,14 +129,14 @@ while (t < tmax):
     ## Set boundary condition at proximal end of the basin:
     for i in range(imax+1):
         columns[i].update({"oldHeight":columns[i]["totalHeight"]}) ## Needed for the setNodes function at i==0. "totalHeight" would have been sufficient for the other nodes at the "old" height. The "oldHeight" is given to all nodes here to keep the setNodes function clear for a human to read.
-    for p in range(2):
+    for p in range(nrOfGrainSizes):
         columns[0]["TotalSedContent"][p] += q0[p]*dt/dx
         columns[0]["totalHeight"] += q0[p]*dt/dx
     
     ## The right end of basin always remains 0 for it is not altered by the FTCS scheme. Therefore there is no need to specify that boundary condition here.
     
     ## Keep track of volume balance:
-    for p in range(2):
+    for p in range(nrOfGrainSizes):
         totalInput+= q0[p]*dt
         InputPerGrainSize[p] += q0[p]*dt
         totalOutput+= ( (k[p]*dt)/(dx*dx) )*( columns[imax-1]["totalHeight"] - columns[imax]["totalHeight"] )*dx ## Volume leaving = height*dx at i=imax, which is set to 0
@@ -140,7 +145,7 @@ while (t < tmax):
     ## Loop through columns (for FTCS, density calculations, etc):
     for i in range(1,imax):
         newHeight[i]= columns[i]["totalHeight"] ##Start from current height
-        for p in range(2):
+        for p in range(nrOfGrainSizes):
             newSedContent[p,i] = columns[i]["TotalSedContent"][p] ##Start from current sediment content
             ## FTCS:
             #Dph= ( D(i+1)+D(i) )/2.e0
@@ -169,17 +174,26 @@ while (t < tmax):
     
     ## Update in proximal boundary column:
     newHeight[0] = columns[0]["totalHeight"]
-    for p in range(2):
-        sedOut[p,0] = ( (k[p]*dt)/(dx*dx) )*( columns[0]["totalHeight"] - columns[1]["totalHeight"] )
-        sedOut[p,0] = min(sedOut[p,0], columns[0]["TotalSedContent"][p]) 
-        newSedContent[p,0] = columns[0]["TotalSedContent"][p] - sedOut[p,0]
-        newHeight[0] -= sedOut[p,0]
+    for p in range(nrOfGrainSizes):
+        if (columns[0]["totalHeight"] > columns[1]["totalHeight"]): ## Usual case
+            sedIn[p,0] = 0 ## The input in i==0 is handeled as a boundary condition earlier in the iteration
+            sedOut[p,0] = ( (k[p]*dt)/(dx*dx) )*( columns[0]["totalHeight"] - columns[1]["totalHeight"] )
+            sedOut[p,0] = min(sedOut[p,0], columns[0]["TotalSedContent"][p]) 
+            newSedContent[p,0] = columns[0]["TotalSedContent"][p] - sedOut[p,0]
+            newHeight[0] -= sedOut[p,0] ## Note: is done here twice in same node, cannot therefore be done as "TotalSedContent" but instead +=/-= is used.
+        else:
+            sedIn[p,0] = ( (k[p]*dt)/(dx*dx) )*( columns[1]["totalHeight"] - columns[0]["totalHeight"] )
+            sedIn[p,0] = min(sedIn[p,0], columns[1]["TotalSedContent"][p])
+            sedOut[p,0] = 0
+            newSedContent[p,0] = columns[0]["TotalSedContent"][p] + sedIn[p,0]
+            newHeight[0] += sedIn[p,0] ## Note: is done here twice in same node, cannot therefore be done as "TotalSedContent" but instead +=/-= is used.
+        
         
     columns[0] = setNodes(0, k, newHeight[0], columns[0], dt, dx, dy, rho0)
     ## Overwrite old the topography with the new profile:
     for i in range(0,imax):
         columns[i]["totalHeight"] = newHeight[i]
-        for p in range(2):
+        for p in range(nrOfGrainSizes):
             columns[i]["TotalSedContent"][p] = newSedContent[p,i]
     
     
@@ -206,7 +220,7 @@ DepositVolPerGrainSize = [0,0]
 for i in range(imax+1):
     totalHeight[i]= columns[i]["totalHeight"]
     totalDepositVolume+= columns[i]["totalHeight"]*dx
-    for p in range(2):
+    for p in range(nrOfGrainSizes):
         DepositVolPerGrainSize[p] += columns[i]["TotalSedContent"][p]*dx
     for j in range(0,len(columns[i]["nodes"])):
         try:
@@ -226,7 +240,7 @@ print("")
 print("Volume error:", str(totalDepositVolume+totalOutput-totalInput)+"m^3")
 print("Error in %:", str(100*(totalDepositVolume+totalOutput-totalInput)/totalInput)+"%")
 print("")
-for p in range(2):
+for p in range(nrOfGrainSizes):
     print("Volume error per grain size ("+str(p)+"):", str(DepositVolPerGrainSize[p]+OutputPerGrainSize[p]-InputPerGrainSize[p])+"m^3")
     print("Error in %:", str(100*(DepositVolPerGrainSize[p]+OutputPerGrainSize[p]-InputPerGrainSize[p])/InputPerGrainSize[p])+"%")
 print("")
