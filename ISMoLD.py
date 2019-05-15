@@ -3,6 +3,7 @@
 
 import math
 import os
+import pdb ## pdb.set_trace()
 import matplotlib.pyplot as plt
 import numpy as np
 from os import listdir
@@ -14,13 +15,13 @@ spikeTest = False
 
 ##Uncomment if not desired
 plot = True 
-spikeTest = True
+#spikeTest = True
 
 yr2sec = 60*60*24*365.25    #nr of seconds in a year
 
 dx= 1.e3                    # lateral grid spacing (m)
 imax= 101                   # number of nodes
-tmax= 10000*yr2sec          # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+tmax= 10*yr2sec          # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
 dtout = tmax/100            # nr of years between write output
 dtout_progress = 10*yr2sec  # nr of years between progress bar update
 nrOfGrainSizes = 2
@@ -28,7 +29,7 @@ k= list(range(nrOfGrainSizes))
 k[0]= 3.2e-4                # Gravel diffusivity (m2/s)
 k[1]= 4*3.2e-4              # Sand diffusivity (m2/s)
 q0= list(range(nrOfGrainSizes))
-q0[0]= 2.e-6                # Gravel input (m2/s)
+q0[0]= 1.e-6                # Gravel input (m2/s)
 q0[1]= 1.e-6                # Sand input (m2/s)
 
 rho0 = 2700
@@ -61,11 +62,11 @@ for i in range(imax+1):
     x[i]=i
     totalHeight[i] = 0
     columns[i]= {"totalHeight":0,
-                 "TotalSedContent":list(range(nrOfGrainSizes)),
+                 "totalSedContent":list(range(nrOfGrainSizes)),
                  "nodes":{},
                  }
     for p in range(nrOfGrainSizes):
-        columns[i]["TotalSedContent"][p] = 0
+        columns[i]["totalSedContent"][p] = 0
         newSedContent[p,i]= 0
         
 
@@ -80,25 +81,27 @@ if (outputfilesNr >= 0):
 #  Note: the code cannot properly deal with intense spikes of 1 (except for i==0), thus the the spike is 2*dx wide.
 if (spikeTest):
     spikeHeight = 100
-    spikeLocation = 50
+    spikeLocation = 49
     totalInput+= spikeHeight*dx
     for p in range(nrOfGrainSizes):
         InputPerGrainSize[p] += dx*spikeHeight/2
         q0[p] = 0
     columns[spikeLocation]["totalHeight"] = spikeHeight
-    columns[spikeLocation]["TotalSedContent"][0] = spikeHeight/2
-    columns[spikeLocation]["TotalSedContent"][1] = spikeHeight/2
-    for q in range(spikeHeight):
-        columns[spikeLocation]["nodes"].update({q:{"density":rho0}})
+    columns[spikeLocation]["totalSedContent"][0] = spikeHeight/2
+    columns[spikeLocation]["totalSedContent"][1] = spikeHeight/2
+    for q in range(spikeHeight+1):
+        columns[spikeLocation]["nodes"].update({q:{"density":rho0,
+                                                   "nodeSedContent":[0.5,0.5]}})
 
     totalInput+= spikeHeight*dx
     for p in range(nrOfGrainSizes):
         InputPerGrainSize[p] += dx*spikeHeight/2
     columns[spikeLocation+1]["totalHeight"] = spikeHeight
-    columns[spikeLocation+1]["TotalSedContent"][0] = spikeHeight/2
-    columns[spikeLocation+1]["TotalSedContent"][1] = spikeHeight/2
-    for q in range(spikeHeight):
-        columns[spikeLocation+1]["nodes"].update({q:{"density":rho0}})
+    columns[spikeLocation+1]["totalSedContent"][0] = spikeHeight/2
+    columns[spikeLocation+1]["totalSedContent"][1] = spikeHeight/2
+    for q in range(spikeHeight+1):
+        columns[spikeLocation+1]["nodes"].update({q:{"density":rho0,
+                                                     "nodeSedContent":[0.5,0.5]}})
 
 
 ## ## ## ## ## ## ## ##
@@ -128,9 +131,11 @@ while (t < tmax):
     
     ## Set boundary condition at proximal end of the basin:
     for i in range(imax+1):
-        columns[i].update({"oldHeight":columns[i]["totalHeight"]}) ## Needed for the setNodes function at i==0. "totalHeight" would have been sufficient for the other nodes at the "old" height. The "oldHeight" is given to all nodes here to keep the setNodes function clear for a human to read.
+        ## "oldHeight" and "oldSedContent" are needed for the setNodes function at i==0. "totalHeight" would have been sufficient for the other nodes as the "old" height. The "oldHeight" is given to all nodes here to keep the setNodes function clear for a human to read. Similarly for "oldSedContent":
+        columns[i].update({"oldHeight":columns[i]["totalHeight"]}) 
+        columns[i].update({"oldSedContent":columns[i]["totalSedContent"]})
     for p in range(nrOfGrainSizes):
-        columns[0]["TotalSedContent"][p] += q0[p]*dt/dx
+        columns[0]["totalSedContent"][p] += q0[p]*dt/dx
         columns[0]["totalHeight"] += q0[p]*dt/dx
     
     ## The right end of basin always remains 0 for it is not altered by the FTCS scheme. Therefore there is no need to specify that boundary condition here.
@@ -146,7 +151,7 @@ while (t < tmax):
     for i in range(1,imax):
         newHeight[i]= columns[i]["totalHeight"] ##Start from current height
         for p in range(nrOfGrainSizes):
-            newSedContent[p,i] = columns[i]["TotalSedContent"][p] ##Start from current sediment content
+            newSedContent[p,i] = columns[i]["totalSedContent"][p] ##Start from current sediment content
             ## FTCS:
             #Dph= ( D(i+1)+D(i) )/2.e0
             #Dmh= ( D(i)+D(i-1) )/2.e0
@@ -154,58 +159,57 @@ while (t < tmax):
             Dmh = k[p]
             if (columns[i-1]["totalHeight"] > columns[i+1]["totalHeight"]): ## Slope goes down to the right
                 sedIn[p,i] = ( (Dph*dt)/(dx*dx) )*( columns[i-1]["totalHeight"] - columns[i]["totalHeight"] )
-                sedIn[p,i] = min(sedIn[p,i], columns[i-1]["TotalSedContent"][p])
+                sedIn[p,i] = min(sedIn[p,i], columns[i-1]["totalSedContent"][p])
                 sedOut[p,i] = ( (Dmh*dt)/(dx*dx) )*( columns[i]["totalHeight"] - columns[i+1]["totalHeight"] )
-                sedOut[p,i] = min(sedOut[p,i], columns[i]["TotalSedContent"][p])
+                sedOut[p,i] = min(sedOut[p,i], columns[i]["totalSedContent"][p])
             else: ## Slope goes down to the left
                 sedIn[p,i] = ( (Dph*dt)/(dx*dx) )*( columns[i+1]["totalHeight"] - columns[i]["totalHeight"] )
-                sedIn[p,i] = min(sedIn[p,i], columns[i+1]["TotalSedContent"][p])
+                sedIn[p,i] = min(sedIn[p,i], columns[i+1]["totalSedContent"][p])
                 sedOut[p,i] = ( (Dmh*dt)/(dx*dx) )*( columns[i]["totalHeight"] - columns[i-1]["totalHeight"] )
-                sedOut[p,i] = min(sedOut[p,i], columns[i]["TotalSedContent"][p])
+                sedOut[p,i] = min(sedOut[p,i], columns[i]["totalSedContent"][p])
             
             newSedContent[p,i] += sedIn[p,i]-sedOut[p,i]
             newHeight[i] += sedIn[p,i]-sedOut[p,i]
             if (abs(sedIn[p,i]-sedOut[p,i]) > 1):
                 print("active Layer > 1",i , dt, sedIn[p,i]-sedOut[p,i])
         
-        columns[i] = setNodes(i, k, newHeight[i], columns[i], dt, dx, dy, rho0)  ## Update density, (todo grain size fractions and porosity)
-        
-    ## End column loop (i)
+        columns[i] = setNodes(i, k, newHeight[i], columns[i], newSedContent[:,i], dt, dx, dy, rho0)  ## Update density, (todo grain size fractions and porosity)
     
+    ## End column loop (i)
+
     ## Update in proximal boundary column:
     newHeight[0] = columns[0]["totalHeight"]
     for p in range(nrOfGrainSizes):
         if (columns[0]["totalHeight"] > columns[1]["totalHeight"]): ## Usual case
             sedIn[p,0] = 0 ## The input in i==0 is handeled as a boundary condition earlier in the iteration
             sedOut[p,0] = ( (k[p]*dt)/(dx*dx) )*( columns[0]["totalHeight"] - columns[1]["totalHeight"] )
-            sedOut[p,0] = min(sedOut[p,0], columns[0]["TotalSedContent"][p]) 
-            newSedContent[p,0] = columns[0]["TotalSedContent"][p] - sedOut[p,0]
-            newHeight[0] -= sedOut[p,0] ## Note: is done here twice in same node, cannot therefore be done as "TotalSedContent" but instead +=/-= is used.
+            sedOut[p,0] = min(sedOut[p,0], columns[0]["totalSedContent"][p]) 
+            newSedContent[p,0] = columns[0]["totalSedContent"][p] - sedOut[p,0]
+            newHeight[0] -= sedOut[p,0] ## Note: is done here twice in same node, cannot therefore be done as "totalSedContent" but instead +=/-= is used.
         else:
             sedIn[p,0] = ( (k[p]*dt)/(dx*dx) )*( columns[1]["totalHeight"] - columns[0]["totalHeight"] )
-            sedIn[p,0] = min(sedIn[p,0], columns[1]["TotalSedContent"][p])
+            sedIn[p,0] = min(sedIn[p,0], columns[1]["totalSedContent"][p])
             sedOut[p,0] = 0
-            newSedContent[p,0] = columns[0]["TotalSedContent"][p] + sedIn[p,0]
-            newHeight[0] += sedIn[p,0] ## Note: is done here twice in same node, cannot therefore be done as "TotalSedContent" but instead +=/-= is used.
+            newSedContent[p,0] = columns[0]["totalSedContent"][p] + sedIn[p,0]
+            newHeight[0] += sedIn[p,0] ## Note: is done here twice in same node, cannot therefore be done as "totalSedContent" but instead +=/-= is used.
         
         
-    columns[0] = setNodes(0, k, newHeight[0], columns[0], dt, dx, dy, rho0)
+    columns[0] = setNodes(0, k, newHeight[0], columns[0], newSedContent[:,0], dt, dx, dy, rho0)
     ## Overwrite old the topography with the new profile:
     for i in range(0,imax):
         columns[i]["totalHeight"] = newHeight[i]
         for p in range(nrOfGrainSizes):
-            columns[i]["TotalSedContent"][p] = newSedContent[p,i]
+            columns[i]["totalSedContent"][p] = newSedContent[p,i]
     
     
     if (t >= tout):
         n= int(tout/dtout)
         f = open("ISMolD_outputdata/topography"+str(n)+".txt", "w")
         for i in range(len(x)):
-            f.write(str(x[i])+" "+str(columns[i]["totalHeight"])+" "+str(columns[i]["TotalSedContent"][0])+" "+str(columns[i]["TotalSedContent"][1])+"\n")
+            f.write(str(x[i])+" "+str(columns[i]["totalHeight"])+" "+str(columns[i]["totalSedContent"][0])+" "+str(columns[i]["totalSedContent"][1])+"\n")
         f.close()
         tout = tout + dtout
-    
-    
+        
     t += dt
     
 ## End time loop
@@ -217,16 +221,32 @@ while (t < tmax):
 totalDepositVolume= 0
 totalNodeVolume= 0
 DepositVolPerGrainSize = [0,0]
+totalGrainSizeFraction = [0,0]
 for i in range(imax+1):
     totalHeight[i]= columns[i]["totalHeight"]
     totalDepositVolume+= columns[i]["totalHeight"]*dx
     for p in range(nrOfGrainSizes):
-        DepositVolPerGrainSize[p] += columns[i]["TotalSedContent"][p]*dx
-    for j in range(0,len(columns[i]["nodes"])):
+        DepositVolPerGrainSize[p] += columns[i]["totalSedContent"][p]*dx
+    for j in range(0,len(columns[i]["nodes"])+1):
         try:
             totalNodeVolume+= dx*dy * columns[i]["nodes"][j]["density"]/rho0
         except:
             pass
+        for p in range(nrOfGrainSizes):
+            try:
+                totalGrainSizeFraction[p] = totalGrainSizeFraction[p] + columns[i]["nodes"][j]["nodeSedContent"][p]
+            except:
+                pass
+
+totalGrainSizeFraction_sum = sum(totalGrainSizeFraction)
+for p in range(nrOfGrainSizes):
+    totalGrainSizeFraction[p] = totalGrainSizeFraction[p]/totalGrainSizeFraction_sum 
+
+
+#pdb.set_trace()
+
+print(columns[1]["nodes"])
+print("")
 
 print("totalInput:", str(totalInput)+"m^3")
 print("InputPerGrainSize:", str(InputPerGrainSize)+"m^3")
@@ -236,6 +256,7 @@ print("")
 print("totalDepositVolume:", str(totalDepositVolume)+"m^3")
 print("totalNodeVolume:", str(totalNodeVolume)+"m^3")
 print("DepositVolPerGrainSize:", str(DepositVolPerGrainSize)+"m^3", "  sum:", sum(DepositVolPerGrainSize))
+print("totalGrainSizeFraction", totalGrainSizeFraction)
 print("")
 print("Volume error:", str(totalDepositVolume+totalOutput-totalInput)+"m^3")
 print("Error in %:", str(100*(totalDepositVolume+totalOutput-totalInput)/totalInput)+"%")
