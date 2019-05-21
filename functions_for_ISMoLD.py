@@ -1,111 +1,342 @@
 import math
 
-def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
+def setNodes2(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
     nrOfGrainSizes = len(newSedContent)
-    flowFractions = list(range(nrOfGrainSizes))
     
-    #dSedContent = list(range(nrOfGrainSizes))
+    current_nodeSedContent = list(range(nrOfGrainSizes))
+    sedContentChange = list(range(nrOfGrainSizes))
     
-    if (newHeight >= column["oldHeight"]):  ## Deposition
+    if ( (newHeight - column["oldHeight"]) == 0): ## Nothing happens
+        return column
+    
+    ##------------##
+    ## Deposition ##
+    ##------------##
+    elif ( (newHeight - column["oldHeight"]) > 0 and all( (newSedContent[q]-column["oldSedContent"][q])>0 for q in range(nrOfGrainSizes)) ): 
+        #print("Deposition")
+        flowFractions = list(range(nrOfGrainSizes))
         
         for p in range (nrOfGrainSizes):
-            if (sum(newSedContent) != 0):
-                flowFractions[p] = newSedContent[p]/sum(newSedContent)
+            sedContentChange[p] = newSedContent[p] - column["oldSedContent"][p]
+            
+        for p in range (nrOfGrainSizes):    
+            if (sum(sedContentChange) != 0):
+                flowFractions[p] = sedContentChange[p]/sum(sedContentChange)
             else:
                 flowFractions[p] = 0
-        #if (sum(flowFractions) != 0): print(flowFractions)
-                
-        depositDensity = rho0 * (newHeight - column["oldHeight"])
+        #print("Woohoo!",sedContentChange, sum(sedContentChange), flowFractions)
         
-        for j in range (math.floor( column["oldHeight"] ), math.ceil( newHeight )):
-            if (j == math.floor( column["oldHeight"]) ): ## Start j
-                if (j==math.ceil( newHeight )-1): ## In the usual case that the first j is also the last
-                    dh = newHeight - column["oldHeight"]
-                    #for p in range(nrOfGrainSizes):
-                        #dSedContent = column["oldSedContent"][p] - newSedContent[p]
-                else:
-                    dh = math.ceil( column["oldHeight"]) - column["oldHeight"]
-                    #dSedContent = math.ceil( column["oldSedContent"][p] - newSedContent[p] )
+        maxNode = len(column["nodes"]) - 1 ## -1 since node count starts at 0 and len() starts at 1
+    
+        if (maxNode < 0): 
+            j=0
+        else:
+            j=maxNode
+        
+        depositDensity = rho0 * (newHeight - column["oldHeight"])
+        #if (depositDensity > 0): print("------------------")
+        while (depositDensity > 0):
+            
+            ## Obtain current values:
+            try:
+                current_node_density = column["nodes"][j]["density"]
+            except:
+                current_node_density = 0
+                
+            remainingDensity = rho0-current_node_density
+            remainingHeight = remainingDensity/rho0
+            
+            for p in range(nrOfGrainSizes):
+                try:
+                    current_nodeSedContent[p] = column["nodes"][j]["nodeSedContent"][p]
+                except:
+                    current_nodeSedContent[p] = 0
+                    
+            ## Note: newNodeSedContent must be set before newNodeDensity, for the variable depositDensity is altered after being used in newNodeDensity and must be used unaltered in newNodeSedContent
+            ## Set new nodeSedContent:
+            if (current_node_density + depositDensity > rho0): ## Cross a node boundary
+                for p in range(nrOfGrainSizes):
+                    newNodeSedContent = current_nodeSedContent[p] + remainingHeight * flowFractions[p]
+                    try:
+                        column["nodes"][j]["nodeSedContent"][p] = newNodeSedContent
+                    except:
+                        try:
+                            column["nodes"][j]["nodeSedContent"].update({p: newNodeSedContent })
+                        except:
+                            try:
+                                column["nodes"][j].update({"nodeSedContent":{p: newNodeSedContent }})
+                            except:
+                                column["nodes"].update({j:{"nodeSedContent":{p: newNodeSedContent }}})
+            
+            else: ## Change stays within one node:
+                newNodeDensity = current_node_density + depositDensity
+                for p in range(nrOfGrainSizes):
+                    newNodeSedContent = current_nodeSedContent[p] + depositDensity/rho0 * flowFractions[p]
+                    try:
+                        column["nodes"][j]["nodeSedContent"][p] = newNodeSedContent
+                    except:
+                        try:
+                            column["nodes"][j]["nodeSedContent"].update({p: newNodeSedContent })
+                        except:
+                            try:
+                                column["nodes"][j].update({"nodeSedContent":{p: newNodeSedContent }})
+                            except:
+                                column["nodes"].update({j:{"nodeSedContent":{p: newNodeSedContent }}})
+                            
+            ## Set new node density:
+            if (current_node_density + depositDensity > rho0):
+                newNodeDensity = rho0
+                depositDensity -= remainingDensity
             else:
-                if (j==math.ceil( newHeight )-1): ## If current j is final j
-                    dh = newHeight-j
-                    #dSedContent = newSedContent[p] - j
-                else:
-                    dh = dy 
+                newNodeDensity = current_node_density + depositDensity
+                depositDensity -= depositDensity
             
             try:
-                current_box_density = column["nodes"][j]["density"]
-                #if (current_box_density < 0): print("error, current_box_density = ", current_box_density, column["oldHeight"], newHeight )
+                column["nodes"][j]["density"] = newNodeDensity
             except:
-                current_box_density = 0
-                
-            if (j==math.ceil( newHeight )-1): ## Final j
-                #if (current_box_density + rho0 *(dh) >= rho0): ##Final height change exeeds one node boundary:
-                #if (j==math.floor( column["oldHeight"] )): ##Height change is within the same node:
-                remainder = current_box_density + depositDensity
                 try:
-                    column["nodes"][j]["density"] = remainder
+                    column["nodes"][j].update({"density":newNodeDensity})
                 except:
-                    column["nodes"].update({j:{"density":remainder}})
-                for p in range(nrOfGrainSizes):
-                    try:
-                        remainder = column["nodes"][j]["nodeSedContent"][p] 
-                    except:
-                        remainder = 0
-                    try:
-                        column["nodes"][j]["nodeSedContent"][p] = remainder+ dh * flowFractions[p]
-                    except:
-                        column["nodes"][j].update({"nodeSedContent":{p:remainder+ dh * flowFractions[p]}})
-                        
-            else: ##Fill whole node from 0 to full:
+                    column["nodes"].update({j:{"density":newNodeDensity}})
                 
-                column["nodes"][j]["density"] = rho0
-                depositDensity -= (rho0 - current_box_density)
-                for p in range(nrOfGrainSizes):
-                    try:
-                        remainder = column["nodes"][j]["nodeSedContent"][p] 
-                    except:
-                        remainder = 0
-                    try:
-                        column["nodes"][j]["nodeSedContent"][p] = remainder+ dh * flowFractions[p]
-                    except:
-                        column["nodes"][j].update({"nodeSedContent":{p:remainder+ dh * flowFractions[p]}})
                 
-    else:  ## Erosion
-        for j in range(math.floor(column["oldHeight"]), math.floor(newHeight)-1, -1): ## loop from top down
+            #print(current_nodeSedContent, remainingHeight, flowFractions)
+            #print(j, depositDensity)
             
-            if (j == math.floor( column["oldHeight"] )): ## Start j
-                if (j==math.floor( newHeight )): ## In the usual case that the first j is also the last
-                    dh = column["oldHeight"] - newHeight
-                else:
-                    dh = column["oldHeight"] - math.floor( column["totalHeight"] )
+            #print(column)
+            #print("")
+            #print(sedContentChange, sum(sedContentChange), newHeight-column["oldHeight"])
+            j+=1
+            
+            
+    ##---------##
+    ## Erosion ##
+    ##---------##
+    elif ( (newHeight - column["oldHeight"]) < 0 and all( (newSedContent[q]-column["oldSedContent"][q])<0 for q in range(nrOfGrainSizes)) ):  ## Erosion
+            
+        #print("Erosion", newHeight - column["oldHeight"], newHeight, newSedContent)
+        #print("pre erosion column:", column)
+        #print("")
+        erosionFractions = list(range(nrOfGrainSizes))
+        erosionContent = list(range(nrOfGrainSizes))
+        
+        for p in range (nrOfGrainSizes):
+            sedContentChange[p] = column["oldSedContent"][p] - newSedContent[p]
+        
+        erosionContent = sedContentChange
+            
+        for p in range (nrOfGrainSizes):
+            if (sum(sedContentChange) != 0):
+                erosionFractions[p] = sedContentChange[p]/sum(sedContentChange)
             else:
-                if (j==math.floor( newHeight )): ## If current j is final j
-                    dh = math.ceil( newHeight ) - newHeight
-                else:
-                    dh = dy
-                    
+                erosionFractions[p] = 0
+        #print("Woohoo!",sedContentChange, sum(sedContentChange), erosionFractions)
+        
+        maxNode = len(column["nodes"]) - 1 ## -1 since node count starts at 0 and len() starts at 1
+    
+        if (maxNode < 0): 
+            print("Error, cannot erode nonexistent material.")
+            exit()
+        else:
+            j=maxNode
+        
+        erosionDensity = rho0 * ( column["oldHeight"] - newHeight ) ## Make this dependent on the nodes!!!!
+        #if (erosionDensity  > 0): print("------------------")
+        while (erosionDensity  > 0):
+            if (j<0): print("Error, cannot remove node", j)
+            ## Obtain current values:
             try:
-                current_box_density = column["nodes"][j]["density"]
+                current_node_density = column["nodes"][j]["density"]
             except:
-                current_box_density = 0
-                    
-            if (j==math.floor( newHeight )): ## Final j
-                depositFractions = list(range(nrOfGrainSizes))
-                for p in range(nrOfGrainSizes):
-                    depositFractions[p] = column["nodes"][j]["nodeSedContent"][p]/sum(column["nodes"][j]["nodeSedContent"])
-                remainder = current_box_density - rho0*( dh )
-                column["nodes"][j]["density"] = remainder
-                for p in range(nrOfGrainSizes):
-                    try:
-                        remainder = column["nodes"][j]["nodeSedContent"][p] 
-                        column["nodes"][j]["nodeSedContent"][p] = remainder- dh * depositFractions[p]
-                    except:
-                        pass
-            else: ## Node is above the newHeight thus is to be eroded
+                current_node_density = 0
+                
+            remainingDensity = erosionDensity-current_node_density
+            remainingHeight = remainingDensity/rho0
+            
+            for p in range(nrOfGrainSizes):
                 try:
-                    del column["nodes"][j] 
+                    current_nodeSedContent[p] = column["nodes"][j]["nodeSedContent"][p]
                 except:
-                    pass
+                    current_nodeSedContent[p] = 0
+                    print("Error, while eroding there should not be nodes without nodeSedContent.")
+                    
+            ## Note: newNodeSedContent must be set before newNodeDensity, for the variable depositDensity is altered after being used in newNodeDensity and must be used unaltered in newNodeSedContent
+            ## Set new nodeSedContent:
+            if (current_node_density < erosionDensity ): ## Cross a node boundary
+                for p in range (nrOfGrainSizes):
+                    erosionContent[p] -= column["nodes"][j]["nodeSedContent"][p]
+                del column["nodes"][j] 
+                erosionDensity -= current_node_density
+                
+            else: ## Change stays within one node:
+                newNodeDensity = current_node_density - erosionDensity
+                column["nodes"][j]["density"] = newNodeDensity
+                for p in range(nrOfGrainSizes):
+                    newNodeSedContent = current_nodeSedContent[p] - erosionContent[p]
+                    column["nodes"][j]["nodeSedContent"][p] = newNodeSedContent
+                erosionDensity -= erosionDensity
+                
+                
+            #print(current_nodeSedContent, remainingHeight, flowFractions)
+            #print(j, depositDensity)
+            
+            #print(column)
+            #print("")
+            #print(sedContentChange, sum(sedContentChange), newHeight-column["oldHeight"])
+            j-=1
+        #print("eroded column:", column)
+        #exit()
+    else: ## Both Deposition and Erosion
+            
+        #print("It happened", newHeight, column["oldHeight"], newSedContent, column["oldSedContent"], newSedContent -column["oldSedContent"])
+        
+        ## First erode all material
+        for p in range(nrOfGrainSizes):
+            
+            if( newSedContent[p] - column["oldSedContent"][p] < 0 ): ## If erosion 
+                
+                erosionDensity = abs(newSedContent[p] - column["oldSedContent"][p]) *rho0
+                
+                maxNode = len(column["nodes"]) - 1 ## -1 since node count starts at 0 and len() starts at 1
+                if (maxNode < 0): 
+                    j = 0
+                else:
+                    j=maxNode
+                    
+                while (erosionDensity > 0):
+                    if (j < 0): print("Error, j cannot be negative. j:", j)
+                    currentSedContent = column["nodes"][j]["nodeSedContent"][p]
+                    if (currentSedContent*rho0 < erosionDensity): ## Change exeeds one node boundary
+                        column["nodes"][j]["nodeSedContent"][p] = 0
+                        column["nodes"][j]["density"] -= min(erosionDensity, currentSedContent*rho0)
+                        erosionDensity -= min(erosionDensity, currentSedContent*rho0)
+                    else: ## Change stays within same node
+                        column["nodes"][j]["nodeSedContent"][p] = currentSedContent - erosionDensity/rho0
+                        column["nodes"][j]["density"] -= erosionDensity
+                        erosionDensity = 0
+                    j-=1
+            
+        ## Make sure only the top node is not fully filled
+        maxNode = len(column["nodes"]) - 1 ## -1 since node count starts at 0 and len() starts at 1
+        if (maxNode == -1):
+            maxNode = 0
+        else:
+            j=maxNode
+        
+        #print("Before",column)
+        nextNodeFraction = list(range(nrOfGrainSizes))
+        for j in range(maxNode):
+            nextNodeContentSum = 0
+            for p in range(nrOfGrainSizes):
+                nextNodeContentSum += column["nodes"][j+1]["nodeSedContent"][p]
+            for p in range (nrOfGrainSizes):
+                nextNodeFraction[p] = column["nodes"][j+1]["nodeSedContent"][p]/nextNodeContentSum
+            if (column["nodes"][j]["density"] < rho0 and j < maxNode):
+                currentDensity = column["nodes"][j]["density"]
+                missingDensity = rho0 - column["nodes"][j]["density"]
+                movedDensity = min(missingDensity, column["nodes"][j+1]["density"])
+                column["nodes"][j]["density"] += movedDensity 
+                column["nodes"][j+1]["density"] -= movedDensity 
+                for p in range(nrOfGrainSizes):
+                    column["nodes"][j]["nodeSedContent"][p] += (movedDensity/rho0) * nextNodeFraction[p]
+                    column["nodes"][j+1]["nodeSedContent"][p] -= (movedDensity/rho0) * nextNodeFraction[p]
+                #print("yyy", movedDensity, nextNodeFraction, column["nodes"][j]["nodeSedContent"], column["nodes"][j+1]["nodeSedContent"])
+            #print("After",column)    
+            #print("")
+            
+            
+        ## Remaining deposition
+        flowFractions = list(range(nrOfGrainSizes))
+        
+        for p in range (nrOfGrainSizes):
+            sedContentChange[p] = newSedContent[p] - column["oldSedContent"][p]
+            
+        totalDepositionDensity = 0
+        for p in range (nrOfGrainSizes):
+            if (sedContentChange[p] > 0):
+                totalDepositionDensity += sedContentChange[p]*rho0
+                
+        for p in range (nrOfGrainSizes):    
+            if (sedContentChange[p] > 0):
+                flowFractions[p] = sedContentChange[p]*rho0/totalDepositionDensity
+            else:
+                flowFractions[p] = 0
+        
+        maxNode = len(column["nodes"]) - 1 ## -1 since node count starts at 0 and len() starts at 1
+        if (maxNode == -1):
+            maxNode = 0
+        else:
+            j=maxNode
+            
+        depositDensity = totalDepositionDensity
+        while (depositDensity > 0):
+            
+            ## Obtain current values:
+            try:
+                current_node_density = column["nodes"][j]["density"]
+            except:
+                current_node_density = 0
+                
+            remainingDensity = rho0-current_node_density
+            remainingHeight = remainingDensity/rho0
+            
+            for p in range(nrOfGrainSizes):
+                try:
+                    current_nodeSedContent[p] = column["nodes"][j]["nodeSedContent"][p]
+                except:
+                    current_nodeSedContent[p] = 0
+            if (current_node_density + depositDensity > rho0): ## Cross a node boundary
+                for p in range(nrOfGrainSizes):
+                    newNodeSedContent = current_nodeSedContent[p] + remainingHeight * flowFractions[p]
+                    try:
+                        column["nodes"][j]["nodeSedContent"][p] = newNodeSedContent
+                    except:
+                        try:
+                            column["nodes"][j]["nodeSedContent"].update({p: newNodeSedContent })
+                        except:
+                            try:
+                                column["nodes"][j].update({"nodeSedContent":{p: newNodeSedContent }})
+                            except:
+                                column["nodes"].update({j:{"nodeSedContent":{p: newNodeSedContent }}})
+            
+            else: ## Change stays within one node:
+                newNodeDensity = current_node_density + depositDensity
+                for p in range(nrOfGrainSizes):
+                    newNodeSedContent = current_nodeSedContent[p] + depositDensity/rho0 * flowFractions[p]
+                    try:
+                        column["nodes"][j]["nodeSedContent"][p] = newNodeSedContent
+                    except:
+                        try:
+                            column["nodes"][j]["nodeSedContent"].update({p: newNodeSedContent })
+                        except:
+                            try:
+                                column["nodes"][j].update({"nodeSedContent":{p: newNodeSedContent }})
+                            except:
+                                column["nodes"].update({j:{"nodeSedContent":{p: newNodeSedContent }}})
+                            
+            ## Set new node density:
+            if (current_node_density + depositDensity > rho0):
+                newNodeDensity = rho0
+                depositDensity -= remainingDensity
+            else:
+                newNodeDensity = current_node_density + depositDensity
+                depositDensity -= depositDensity
+            
+            try:
+                column["nodes"][j]["density"] = newNodeDensity
+            except:
+                try:
+                    column["nodes"][j].update({"density":newNodeDensity})
+                except:
+                    column["nodes"].update({j:{"density":newNodeDensity}})
+                    
+            j+=1
+        
+    
+    #if (newHeight > 0):
+        #print("newHeight",newHeight, column["oldHeight"], sedContentChange)
+        #print(column)
+        #print("")        
     return column
+
 
