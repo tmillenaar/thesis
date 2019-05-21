@@ -1,4 +1,13 @@
 import math
+import os 
+
+def makeDirectories():
+    if (not os.path.isdir("ISMolD_outputdata/relief")):
+        os.mkdir("ISMolD_outputdata/relief")
+
+    if (not os.path.isdir("ISMolD_outputdata/nodes")):
+        os.mkdir("ISMolD_outputdata/nodes")
+
 
 def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
     nrOfGrainSizes = len(newSedContent)

@@ -1,4 +1,4 @@
-#import os
+import os
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,12 +6,16 @@ from matplotlib.animation import FuncAnimation
 from os import listdir
 
 
-nr_frames = len(listdir("ISMolD_outputdata/"))-1 #-1 since file starts at 'output0', add -1 for amy subdirectory
+if (not os.path.isdir("ISMolD_outputdata/relief")):
+    print("Error, directory ISMolD_outputdata/relief does not exist.")
+    exit()
+
+nr_frames = len(listdir("ISMolD_outputdata/relief"))-1 #-1 since file starts at 'output0', add -1 for amy subdirectory
 
 lowerBound = 0
 upperBound = 0
 for i in range (nr_frames):
-    data = np.loadtxt('ISMolD_outputdata/topography'+str(i)+'.txt')
+    data = np.loadtxt('ISMolD_outputdata/relief/topography'+str(i)+'.txt')
     lowerBound = min(lowerBound, min(data[:,1]-10))
     upperBound = max(upperBound, max(data[:,1]+20))
     
@@ -40,7 +44,7 @@ def update(i):
     
     # Update the line and the axes (with a new xlabel). Return a tuple of
     # "artists" that have to be redrawn for this frame.
-    data = np.loadtxt('ISMolD_outputdata/topography'+str(i)+'.txt')
+    data = np.loadtxt('ISMolD_outputdata/relief/topography'+str(i)+'.txt')
     totalHeight.set_ydata(data[:,1])
     gravel.set_ydata(data[:,2])
     sand.set_ydata(data[:,3])

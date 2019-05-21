@@ -10,6 +10,8 @@ from os import listdir
 
 from functions_for_ISMoLD import *
 
+makeDirectories()
+
 plot = False
 spikeTest = False
 trace = False
@@ -75,11 +77,10 @@ for i in range(imax+1):
         
 
 ## Remove old data files
-#     Note: "listdir" returns the number of files in the folder. ...
-#           ... One file returns 1 but the names start at "output0", thus the -1:
-outputfilesNr = len(listdir("ISMolD_outputdata/"))-1 
-if (outputfilesNr >= 0):
+try:
     os.system('rm ISMolD_outputdata/topography*.txt')
+except:
+    pass
 
 ## Spike test:
 #  Note: the code cannot properly deal with intense spikes of 1 (except for i==0), thus the the spike is 2*dx wide.
@@ -220,7 +221,7 @@ while (t < tmax):
     
     if (t >= tout):
         n= int(tout/dtout)
-        f = open("ISMolD_outputdata/topography"+str(n)+".txt", "w")
+        f = open("ISMolD_outputdata/relief/topography"+str(n)+".txt", "w")
         for i in range(len(x)):
             f.write(str(x[i])+" "+str(columns[i]["totalHeight"])+" "+str(columns[i]["totalSedContent"][0])+" "+str(columns[i]["totalSedContent"][1])+"\n")
         f.close()
@@ -260,6 +261,11 @@ for p in range(nrOfGrainSizes):
 
 if (trace):
     pdb.set_trace()
+    
+f = open("ISMolD_outputdata/nodes/topography"+str(n)+".txt", "w")
+for i in range(len(x)):
+    f.write(str(x[i])+" "+str(columns[i]["totalHeight"])+" "+str(columns[i]["totalSedContent"][0])+" "+str(columns[i]["totalSedContent"][1])+"\n")
+f.close()
     
 #print(columns[0]["nodes"])
 #print("")
