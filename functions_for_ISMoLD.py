@@ -1,6 +1,6 @@
 import math
 
-def setNodes2(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
+def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
     nrOfGrainSizes = len(newSedContent)
     
     current_nodeSedContent = list(range(nrOfGrainSizes))
@@ -13,7 +13,7 @@ def setNodes2(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
     ## Deposition ##
     ##------------##
     elif ( (newHeight - column["oldHeight"]) > 0 and all( (newSedContent[q]-column["oldSedContent"][q])>0 for q in range(nrOfGrainSizes)) ): 
-        #print("Deposition")
+        
         flowFractions = list(range(nrOfGrainSizes))
         
         for p in range (nrOfGrainSizes):
@@ -24,17 +24,15 @@ def setNodes2(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
                 flowFractions[p] = sedContentChange[p]/sum(sedContentChange)
             else:
                 flowFractions[p] = 0
-        #print("Woohoo!",sedContentChange, sum(sedContentChange), flowFractions)
         
         maxNode = len(column["nodes"]) - 1 ## -1 since node count starts at 0 and len() starts at 1
-    
         if (maxNode < 0): 
             j=0
         else:
             j=maxNode
         
         depositDensity = rho0 * (newHeight - column["oldHeight"])
-        #if (depositDensity > 0): print("------------------")
+        
         while (depositDensity > 0):
             
             ## Obtain current values:
@@ -99,13 +97,6 @@ def setNodes2(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
                 except:
                     column["nodes"].update({j:{"density":newNodeDensity}})
                 
-                
-            #print(current_nodeSedContent, remainingHeight, flowFractions)
-            #print(j, depositDensity)
-            
-            #print(column)
-            #print("")
-            #print(sedContentChange, sum(sedContentChange), newHeight-column["oldHeight"])
             j+=1
             
             
@@ -114,9 +105,6 @@ def setNodes2(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
     ##---------##
     elif ( (newHeight - column["oldHeight"]) < 0 and all( (newSedContent[q]-column["oldSedContent"][q])<0 for q in range(nrOfGrainSizes)) ):  ## Erosion
             
-        #print("Erosion", newHeight - column["oldHeight"], newHeight, newSedContent)
-        #print("pre erosion column:", column)
-        #print("")
         erosionFractions = list(range(nrOfGrainSizes))
         erosionContent = list(range(nrOfGrainSizes))
         
@@ -130,7 +118,6 @@ def setNodes2(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
                 erosionFractions[p] = sedContentChange[p]/sum(sedContentChange)
             else:
                 erosionFractions[p] = 0
-        #print("Woohoo!",sedContentChange, sum(sedContentChange), erosionFractions)
         
         maxNode = len(column["nodes"]) - 1 ## -1 since node count starts at 0 and len() starts at 1
     
@@ -141,7 +128,7 @@ def setNodes2(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
             j=maxNode
         
         erosionDensity = rho0 * ( column["oldHeight"] - newHeight ) ## Make this dependent on the nodes!!!!
-        #if (erosionDensity  > 0): print("------------------")
+        
         while (erosionDensity  > 0):
             if (j<0): print("Error, cannot remove node", j)
             ## Obtain current values:
@@ -160,7 +147,6 @@ def setNodes2(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
                     current_nodeSedContent[p] = 0
                     print("Error, while eroding there should not be nodes without nodeSedContent.")
                     
-            ## Note: newNodeSedContent must be set before newNodeDensity, for the variable depositDensity is altered after being used in newNodeDensity and must be used unaltered in newNodeSedContent
             ## Set new nodeSedContent:
             if (current_node_density < erosionDensity ): ## Cross a node boundary
                 for p in range (nrOfGrainSizes):
@@ -176,19 +162,9 @@ def setNodes2(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
                     column["nodes"][j]["nodeSedContent"][p] = newNodeSedContent
                 erosionDensity -= erosionDensity
                 
-                
-            #print(current_nodeSedContent, remainingHeight, flowFractions)
-            #print(j, depositDensity)
-            
-            #print(column)
-            #print("")
-            #print(sedContentChange, sum(sedContentChange), newHeight-column["oldHeight"])
             j-=1
-        #print("eroded column:", column)
-        #exit()
+        
     else: ## Both Deposition and Erosion
-            
-        #print("It happened", newHeight, column["oldHeight"], newSedContent, column["oldSedContent"], newSedContent -column["oldSedContent"])
         
         ## First erode all material
         for p in range(nrOfGrainSizes):
@@ -223,7 +199,6 @@ def setNodes2(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
         else:
             j=maxNode
         
-        #print("Before",column)
         nextNodeFraction = list(range(nrOfGrainSizes))
         for j in range(maxNode):
             nextNodeContentSum = 0
@@ -240,10 +215,6 @@ def setNodes2(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
                 for p in range(nrOfGrainSizes):
                     column["nodes"][j]["nodeSedContent"][p] += (movedDensity/rho0) * nextNodeFraction[p]
                     column["nodes"][j+1]["nodeSedContent"][p] -= (movedDensity/rho0) * nextNodeFraction[p]
-                #print("yyy", movedDensity, nextNodeFraction, column["nodes"][j]["nodeSedContent"], column["nodes"][j+1]["nodeSedContent"])
-            #print("After",column)    
-            #print("")
-            
             
         ## Remaining deposition
         flowFractions = list(range(nrOfGrainSizes))
@@ -332,11 +303,7 @@ def setNodes2(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
                     
             j+=1
         
-    
-    #if (newHeight > 0):
-        #print("newHeight",newHeight, column["oldHeight"], sedContentChange)
-        #print(column)
-        #print("")        
+        
     return column
 
 
