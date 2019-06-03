@@ -12,29 +12,31 @@ from functions_for_ISMoLD import *
 
 makeDirectories()
 
-plot = False
+animateHeight = False
+plotNodes = False
 spikeTest = False
 trace = False
 
 ##Uncomment if not desired:
-plot = True 
+#plotHeigt = True 
+#plotNodes = True
 #spikeTest = True
 #trace = True
 
 yr2sec = 60*60*24*365.25    #nr of seconds in a year
 
 dx= 1.e3                    # lateral grid spacing (m)
-imax= 101                   # number of nodes
-tmax= 10000*yr2sec          # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+imax= 501                   # number of nodes
+tmax= 100000*yr2sec          # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
 dtout = tmax/100            # nr of years between write output
 dtout_progress = 10*yr2sec  # nr of years between progress bar update
 nrOfGrainSizes = 2
 k= list(range(nrOfGrainSizes))
-k[0]= 3.2e-4                # Gravel diffusivity (m2/s)
-k[1]= 3*3.2e-4              # Sand diffusivity (m2/s)
+k[0]= 1*3.2e-4                # Gravel diffusivity (m2/s)
+k[1]= 2*3.2e-4              # Sand diffusivity (m2/s)
 q0= list(range(nrOfGrainSizes))
-q0[0]= 1*1.e-6                # Gravel input (m2/s)
-q0[1]= 1.e-6                # Sand input (m2/s)
+q0[0]= 2*1.e-6                # Gravel input (m2/s)
+q0[1]= 1*1.e-6                # Sand input (m2/s)
 
 rho0 = 2700
 
@@ -45,13 +47,17 @@ inputFractions = list(range(nrOfGrainSizes))
 totalHeight= list(range(imax+1))
 newHeight= list(range(imax+1))
 x= list(range(imax+1))
-sedContentInActiveLayer= np.zeros(shape=(2,imax+1))
+sedContentInActiveLayer = np.zeros(shape=(2,imax+1))
+totalSedcontenti0 = []
+totalSedcontenti1 = []
+activeLayeri0 = []
+activeLayeri1 = []
+time = []
 sedIncrease = np.zeros(shape=(2,imax+1))
 sedIn = np.zeros(shape=(2,imax+1))
 sedOut = np.zeros(shape=(2,imax+1))
-newSedContent = np.zeros(shape=(2,imax+1))
 
-dy = 1         # vertical grid spacing (m)  Important: MUST BE 1(as integer)!
+dy = 1         # vertical grid spacing (m)  Important: MUST BE 1(as integer) for code to work (in this version)!
 
 tout = 0.          # threshold to write next output in years (increased every write action by dtout)
 tout_progress = 0.          # threshold to update progress bar
@@ -62,6 +68,7 @@ totalOutput= 0
 InputPerGrainSize = [0,0]
 OutputPerGrainSize = [0,0]
 maxVolumeLoss = 0
+nodeOutputTimestep = 0
 
 columns = {}
 for i in range(imax+1):
@@ -70,20 +77,22 @@ for i in range(imax+1):
     columns[i]= {"totalHeight":0,
                  "totalSedContent":list(range(nrOfGrainSizes)),
                  "nodes":{},
+                 "newSedContent": list(range(nrOfGrainSizes)),
                  }
     for p in range(nrOfGrainSizes):
         columns[i]["totalSedContent"][p] = 0
-        newSedContent[p,i]= 0
+        columns[i]["newSedContent"][p] = 0
+        #columns[i]["newSedContent"][p]= 0
         
 
 ## Remove old data files
-try:
-    os.system('rm ISMolD_outputdata/topography*.txt')
-except:
-    pass
+nr_topo_files = len(listdir("ISMolD_outputdata/relief")) #-1 since file starts at 'output0', add -1 for amy subdirectory
+if (nr_topo_files > 1):
+    os.system('rm ISMolD_outputdata/relief/topography*.txt')
+    os.system('rm -r -f ISMolD_outputdata/nodes/*')
 
 ## Spike test:
-#  Note: the code cannot properly deal with intense spikes of 1 (except for i==0), thus the the spike is 2*dx wide.
+#  Note: the code cannot properly deal with intense spikes with a width of 1 dx (except for i==0), thus the the spike is 2*dx wide.
 if (spikeTest):
     spikeHeight = 100
     spikeLocation = 40
@@ -107,7 +116,6 @@ if (spikeTest):
     for q in range(spikeHeight):
         columns[spikeLocation+1]["nodes"].update({q:{"density":rho0,
                                                      "nodeSedContent":[0.5,0.5]}})
-    #print(columns[spikeLocation])
 
 ## ## ## ## ## ## ## ##
 ##  Main time loop:  ##
@@ -116,8 +124,23 @@ t= 0
 while (t < tmax):
     
     ## Varying sediment input or diffusivity through time can be set here:
-    #q0[0] = max(0, 2.e-6*math.sin(3.1415 * 6* t/tmax))
+    q0[0] = max(0, 0.5e-6*math.sin(3.1415 * 8* t/tmax))
+    q0[1] = max(0, 0.5e-6*math.sin(3.1415 * 8* t/tmax))
     
+    #if(t>0.4*tmax): 
+        #for p in range(nrOfGrainSizes):
+            #q0[p] = 0.e-7
+    
+    #if(t<0.15*tmax): 
+        #q0[0] = 1.e-6
+        #q0[1] = 0
+    #elif(t<0.3*tmax ): 
+        #q0[0] = 0
+        #q0[1] = 1.e-6
+    #elif (t>0.3*tmax):
+        #for p in range(nrOfGrainSizes):
+            #q0[p] = 0.e-7
+            
     ## Calculating max dt as limited by the active layer and the FTCS scheme
     dtFTCS = 0.9*(dx*dx)/(2.e0*(sum(k))) ##FTCS
     heightDiff = columns[0]["totalHeight"]+sum(q0)*dtFTCS/dx-columns[1]["totalHeight"] ## dtFTCS is used here as an estimation on the high side. It is better to estimate more sediment input resulting in a high slope then it is to estimate on the low side. A too low estimate of the sediment input can lead to an amount of sediment being removed somewhere that is more the the depth of the active layer. Higher estimates of q0 result in lowe dt and thus a slower run speed.
@@ -130,7 +153,7 @@ while (t < tmax):
         dt = min(dtFTCS, dtHeightLimit)
     else:
         dt = 0.1*(dx*dx)/(2.e0*(sum(k))) ##FTCS
-    
+    #dt = 0.1*dt
     if t > tout_progress:
         print("      "+str( (math.ceil(100000*t/tmax))/1000 )+"%", end="\r") ##Track progress
         tout_progress += dtout_progress
@@ -164,17 +187,20 @@ while (t < tmax):
                     sedContentInActiveLayer[p,i] = columns[i]["nodes"][0]["nodeSedContent"][p]
                 except:
                     sedContentInActiveLayer[p,i] = 0
-    #print("sedContentInActiveLayer 0",sedContentInActiveLayer[:,0], columns[0]["totalSedContent"])
+        for p in range(nrOfGrainSizes):
+            if (sedContentInActiveLayer[p,i] < 0):
+                print("sedContentInActiveLayer < 0:", sedContentInActiveLayer[:,i], columns[i])
+                exit()
     
         
     ## Loop through columns (for FTCS, density calculations, etc):
     for i in range(imax): 
-        ## i==0 is treated as a special case in this loop and i==imax+1 remains untouched, having it stay 0
+        ## The case i==0 is treated as a special case in this loop and i==imax+1 remains untouched, having it stay 0
         
         newHeight[i]= columns[i]["totalHeight"] ##Start from current height
         for p in range(nrOfGrainSizes):
             
-            newSedContent[p,i] = columns[i]["totalSedContent"][p] ##Start from current sediment content
+            columns[i]["newSedContent"][p] = columns[i]["totalSedContent"][p] ##Start from current sediment content
             ## FTCS:
             #Dph= ( D(i+1)+D(i) )/2.e0
             #Dmh= ( D(i)+D(i-1) )/2.e0
@@ -203,13 +229,33 @@ while (t < tmax):
                     sedOut[p,i] = ( (Dmh*dt)/(dx*dx) )*( columns[i]["totalHeight"] - columns[i-1]["totalHeight"] )
                     sedOut[p,i] = min(sedOut[p,i], sedContentInActiveLayer[p,i])
             
-            newSedContent[p,i] += sedIn[p,i]-sedOut[p,i]
+            columns[i]["newSedContent"][p] = columns[i]["newSedContent"][p] + sedIn[p,i]-sedOut[p,i]
+            if (columns[i]["newSedContent"][p] < 0):
+                print("Attention: newSedContent["+str(p)+"] was set to 0, originally:", columns[i]["newSedContent"][p])
+                columns[i]["newSedContent"][p] = 0
+                print(p, columns[i]["newSedContent"][p], sedIn[p,i], sedOut[p,i], "   Active layer:", sedContentInActiveLayer[p,i])
+                print("")
+                print("")
+                print("")
+                printColumn(columns[i], i, newHeight[i], columns[i]["newSedContent"])
+                #exit()
+                
             newHeight[i] += sedIn[p,i]-sedOut[p,i]
             if (abs(sedIn[p,i]-sedOut[p,i]) > 1):
-                print("active Layer > 1",i , dt, sedIn[p,i]-sedOut[p,i])
+                print("Error, active Layer > 1",i , dt, sedIn[p,i]-sedOut[p,i])
+                exit()
+                
+        if (i==15): 
+            totalSedcontenti0.append(columns[15]["totalSedContent"][0])
+            totalSedcontenti1.append(columns[15]["totalSedContent"][1])
+            activeLayeri0.append(sedContentInActiveLayer[0,15])
+            activeLayeri1.append(sedContentInActiveLayer[1,15])
+            time.append(t)
         
         ## Update the nodes to suite newHeight and newSedContent:
-        columns[i] = setNodes(i, k, newHeight[i], columns[i], newSedContent[:,i], dt, dx, dy, rho0)  
+        #print("sedContentInActiveLayer",sedContentInActiveLayer[:,i])
+        
+        columns[i] = setNodes(i, k, newHeight[i], columns[i], columns[i]["newSedContent"], dt, dx, dy, rho0)  
         
     ## End column loop (i)
     
@@ -217,9 +263,28 @@ while (t < tmax):
     for i in range(0,imax):
         columns[i]["totalHeight"] = newHeight[i]
         for p in range(nrOfGrainSizes):
-            columns[i]["totalSedContent"][p] = newSedContent[p,i]
+            columns[i]["totalSedContent"][p] = columns[i]["newSedContent"][p]
     
+    #print("type:",newHeight.dtype, newSedContent.dtype, columns[0]["totalHeight"].dtype)
+    #print("type:",newHeight[0], columns[0]["totalHeight"], newSedContent[0,0], columns[0]["nodes"][0]["nodeSedContent"])
+    #print(np.dtype(newSedContent[0,0]))
+    #print("")
     if (t >= tout):
+        
+        makeTimeNodeDirectory(nodeOutputTimestep)
+        
+        for i in range(len(x)-1): ## -1 for the last column is always empty (by design). Therefore there is no need to create a file for it.
+            f = open("ISMolD_outputdata/nodes/time"+str(nodeOutputTimestep)+"/column"+str(i)+".txt", "w")
+            for j in range(len(columns[i]["nodes"])):
+                writeline = str(j)+" "+ str(columns[i]["totalHeight"])
+                for p in range(nrOfGrainSizes):
+                    writeline += " "+str(columns[i]["nodes"][j]["nodeSedContent"][p])
+                writeline += "\n"
+                f.write(writeline)
+            f.close()
+        
+        nodeOutputTimestep += 1
+        
         n= int(tout/dtout)
         f = open("ISMolD_outputdata/relief/topography"+str(n)+".txt", "w")
         for i in range(len(x)):
@@ -256,19 +321,24 @@ for i in range(imax+1):
                 pass
 
 totalGrainSizeFraction_sum = sum(totalGrainSizeFraction)
-for p in range(nrOfGrainSizes):
-    totalGrainSizeFraction[p] = totalGrainSizeFraction[p]/totalGrainSizeFraction_sum 
+#for p in range(nrOfGrainSizes):
+    #totalGrainSizeFraction[p] = totalGrainSizeFraction[p]/totalGrainSizeFraction_sum 
 
 if (trace):
     pdb.set_trace()
+
+#for i in range(len(x)-1): ## -1 for the last column is always empty (by design). Therefore there is no need to create a file for it.
+    #f = open("ISMolD_outputdata/nodes/column"+str(i)+".txt", "w")
+    #for j in range(len(columns[i]["nodes"])):
+        #writeline = str(j)+" "+ str(columns[i]["totalHeight"])
+        #for p in range(nrOfGrainSizes):
+            #writeline += " "+str(columns[i]["nodes"][j]["nodeSedContent"][p])
+        #writeline += "\n"
+        #f.write(writeline)
+    #f.close()
     
-f = open("ISMolD_outputdata/nodes/topography"+str(n)+".txt", "w")
-for i in range(len(x)):
-    f.write(str(x[i])+" "+str(columns[i]["totalHeight"])+" "+str(columns[i]["totalSedContent"][0])+" "+str(columns[i]["totalSedContent"][1])+"\n")
-f.close()
-    
-#print(columns[0]["nodes"])
-#print("")
+printColumn(columns[2], 2, newHeight[2], columns[2]["newSedContent"])
+print("")
 
 print("totalInput:", str(totalInput)+"m^3")
 print("InputPerGrainSize:", str(InputPerGrainSize)+"m^3")
@@ -292,10 +362,26 @@ print("Node volume error in %:", str(100*(totalNodeVolume+totalOutput-totalInput
 print("")
 
 
-if (plot):
+fig, ax1 = plt.subplots()
+
+ax1.plot(time, totalSedcontenti0, label="Gravel")
+ax1.plot(time, totalSedcontenti1, label="Sand")
+
+ax2 = ax1.twinx()
+ax2.plot(time, activeLayeri0, linestyle="--")
+ax2.plot(time, activeLayeri1, linestyle="--")
+
+plt.legend()
+plt.show()
+
+if (animateHeight):
     print("Plotting...")
     os.system("python3 animate_ISMoLD.py")
-
+    
+if (plotNodes):
+    print("Plotting...")
+    os.system("python3 plotNodes.py")
+    
 
 
 

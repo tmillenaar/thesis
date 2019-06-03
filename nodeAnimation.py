@@ -77,8 +77,8 @@ def update(t):
 # animating over 10 frames, with an interval of 200ms between frames.
 max_timestep = len(os.listdir("ISMolD_outputdata/relief"))-1 #-1 since file starts at 'time0'
 
-anim = FuncAnimation(fig, update, frames=np.arange(0, max_timestep), interval=30)
-#print("Saving figure...    ", end="\r")
-#anim.save('sedimentContentInNodes.gif', dpi=80, writer='imagemagick')
+anim = FuncAnimation(fig, update, frames=np.arange(0, max_timestep), interval=10)
+print("Saving figure...    ", end="\r")
+anim.save('sedimentContentInNodes.gif', dpi=80, writer='imagemagick')
 print("Showing figure...    ")
 plt.show()
