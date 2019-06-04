@@ -15,7 +15,7 @@ lowerBound = 0
 upperBound = 0
 for i in range (nr_frames):
     data = np.loadtxt('ISMolD_outputdata/relief/topography'+str(i)+'.txt')
-    lowerBound = min(lowerBound, min(data[:,1]-10))
+    lowerBound = min(lowerBound, min(data[:,2]-10))
     upperBound = max(upperBound, max(data[:,1]+20))
     
 #data = np.delete(data, (0), axis=0)
@@ -32,9 +32,9 @@ plt.ylabel('Height in m')
 
 # Plot a scatter that persists (isn't redrawn) and the initial line.
 totalHeight, = ax.plot(data[:,0], data[:,1], 'b-', linewidth=3, label='Relief')
-#bedrock, = ax.plot(data[:,0], data[:,4], 'r-', linewidth=3, label='Basement')
-gravel, = ax.plot(data[:,0], data[:,2], 'green', linewidth=2, label='Gravel')
-sand, = ax.plot(data[:,0], data[:,3], 'orange', linewidth=2, label='Sand')
+bedrock, = ax.plot(data[:,0], data[:,2], 'r-', linewidth=3, label='Basement')
+gravel, = ax.plot(data[:,0], data[:,3], 'green', linewidth=2, label='Gravel')
+sand, = ax.plot(data[:,0], data[:,4], 'orange', linewidth=2, label='Sand')
 #silt, = ax.plot(data[:,0], data[:,1], 'purple', linewidth=2)
 
 def update(i):
@@ -45,12 +45,13 @@ def update(i):
     # "artists" that have to be redrawn for this frame.
     data = np.loadtxt('ISMolD_outputdata/relief/topography'+str(i)+'.txt')
     totalHeight.set_ydata(data[:,1])
-    gravel.set_ydata(data[:,2])
-    sand.set_ydata(data[:,3])
+    bedrock.set_ydata(data[:,2])
+    gravel.set_ydata(data[:,3])
+    sand.set_ydata(data[:,4])
     #bedrock.set_ydata(data[:,4])
     #silt.set_ydata(data[:,1])
     ax.set_title(label)
-    return totalHeight#, bedrock, gravel, sand, ax
+    return totalHeight, bedrock, gravel, sand, ax
 
 if __name__ == '__main__':
     # FuncAnimation will call the 'update' function for each frame; here

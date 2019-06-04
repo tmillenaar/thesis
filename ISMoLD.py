@@ -12,35 +12,38 @@ from functions_for_ISMoLD import *
 
 makeDirectories()
 
+enableSubsidence = False
 animateHeight = False
 plotNodes = False
 spikeTest = False
-trace = False
+pbdtrace = False
 
 ##Uncomment if not desired:
+enableSubsidence = True
+
 #plotHeigt = True 
 #plotNodes = True
 #spikeTest = True
-#trace = True
+#pbdtrace = True
 
-yr2sec = 60*60*24*365.25    #nr of seconds in a year
 
-dx= 1.e3                    # lateral grid spacing (m)
-imax= 501                   # number of nodes
-tmax= 100000*yr2sec          # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
-dtout = tmax/100            # nr of years between write output
-dtout_progress = 10*yr2sec  # nr of years between progress bar update
+yr2sec = 60*60*24*365.25      #nr of seconds in a year
+
+dx= 1.e3                      # lateral grid spacing (m)
+imax= 101                     # number of nodes
+tmax= 100000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+dtout = tmax/100              # nr of years between write output
+dtout_progress = 10*yr2sec    # nr of years between progress bar update
 nrOfGrainSizes = 2
 k= list(range(nrOfGrainSizes))
 k[0]= 1*3.2e-4                # Gravel diffusivity (m2/s)
-k[1]= 2*3.2e-4              # Sand diffusivity (m2/s)
+k[1]= 2*3.2e-4                # Sand diffusivity (m2/s)
 q0= list(range(nrOfGrainSizes))
-q0[0]= 2*1.e-6                # Gravel input (m2/s)
-q0[1]= 1*1.e-6                # Sand input (m2/s)
+q0[0]= 3*1.e-6                # Gravel input (m2/s)
+q0[1]= 2*1.e-6                # Sand input (m2/s)
+subsidenceRate = 7e-7         # Subsidence rate at the proximal end of the basin (m/yr)
 
 rho0 = 2700
-
-subsidence_rate = 0.#4e-4*dt/3 #m/yr
 
 ## Initialize:
 inputFractions = list(range(nrOfGrainSizes))
@@ -75,14 +78,16 @@ for i in range(imax+1):
     x[i]=i
     totalHeight[i] = 0
     columns[i]= {"totalHeight":0,
+                 "bedrockHeight": 0,
                  "totalSedContent":list(range(nrOfGrainSizes)),
                  "nodes":{},
                  "newSedContent": list(range(nrOfGrainSizes)),
+                 "totalSedHeight": list(range(nrOfGrainSizes)),
                  }
     for p in range(nrOfGrainSizes):
         columns[i]["totalSedContent"][p] = 0
         columns[i]["newSedContent"][p] = 0
-        #columns[i]["newSedContent"][p]= 0
+        columns[i]["totalSedHeight"][p] = 0
         
 
 ## Remove old data files
@@ -124,8 +129,8 @@ t= 0
 while (t < tmax):
     
     ## Varying sediment input or diffusivity through time can be set here:
-    q0[0] = max(0, 0.5e-6*math.sin(3.1415 * 8* t/tmax))
-    q0[1] = max(0, 0.5e-6*math.sin(3.1415 * 8* t/tmax))
+    q0[0] = max(0, 0.5e-6*math.sin(3.1415 * 10* t/tmax))
+    q0[1] = max(0, 0.5e-6*math.sin(3.1415 * 10* t/tmax))
     
     #if(t>0.4*tmax): 
         #for p in range(nrOfGrainSizes):
@@ -154,6 +159,7 @@ while (t < tmax):
     else:
         dt = 0.1*(dx*dx)/(2.e0*(sum(k))) ##FTCS
     #dt = 0.1*dt
+    
     if t > tout_progress:
         print("      "+str( (math.ceil(100000*t/tmax))/1000 )+"%", end="\r") ##Track progress
         tout_progress += dtout_progress
@@ -265,6 +271,8 @@ while (t < tmax):
         for p in range(nrOfGrainSizes):
             columns[i]["totalSedContent"][p] = columns[i]["newSedContent"][p]
     
+    if (enableSubsidence): subsidence (columns, imax, dt*subsidenceRate/yr2sec, nrOfGrainSizes)
+    
     #print("type:",newHeight.dtype, newSedContent.dtype, columns[0]["totalHeight"].dtype)
     #print("type:",newHeight[0], columns[0]["totalHeight"], newSedContent[0,0], columns[0]["nodes"][0]["nodeSedContent"])
     #print(np.dtype(newSedContent[0,0]))
@@ -277,6 +285,7 @@ while (t < tmax):
             f = open("ISMolD_outputdata/nodes/time"+str(nodeOutputTimestep)+"/column"+str(i)+".txt", "w")
             for j in range(len(columns[i]["nodes"])):
                 writeline = str(j)+" "+ str(columns[i]["totalHeight"])
+                writeline += " "+str(columns[i]["bedrockHeight"])
                 for p in range(nrOfGrainSizes):
                     writeline += " "+str(columns[i]["nodes"][j]["nodeSedContent"][p])
                 writeline += "\n"
@@ -288,7 +297,12 @@ while (t < tmax):
         n= int(tout/dtout)
         f = open("ISMolD_outputdata/relief/topography"+str(n)+".txt", "w")
         for i in range(len(x)):
-            f.write(str(x[i])+" "+str(columns[i]["totalHeight"])+" "+str(columns[i]["totalSedContent"][0])+" "+str(columns[i]["totalSedContent"][1])+"\n")
+            writeline = str(x[i])+" "+str(columns[i]["totalHeight"])
+            writeline += " "+str(columns[i]["bedrockHeight"])
+            for p in range(nrOfGrainSizes):
+                writeline += " "+str(columns[i]["totalSedContent"][p] + columns[i]["bedrockHeight"]) ## Note that bedrockHeight is generally negative
+            writeline += "\n"
+            f.write(writeline)
         f.close()
         tout = tout + dtout
         
@@ -324,18 +338,9 @@ totalGrainSizeFraction_sum = sum(totalGrainSizeFraction)
 #for p in range(nrOfGrainSizes):
     #totalGrainSizeFraction[p] = totalGrainSizeFraction[p]/totalGrainSizeFraction_sum 
 
-if (trace):
+if (pbdtrace):
     pdb.set_trace()
 
-#for i in range(len(x)-1): ## -1 for the last column is always empty (by design). Therefore there is no need to create a file for it.
-    #f = open("ISMolD_outputdata/nodes/column"+str(i)+".txt", "w")
-    #for j in range(len(columns[i]["nodes"])):
-        #writeline = str(j)+" "+ str(columns[i]["totalHeight"])
-        #for p in range(nrOfGrainSizes):
-            #writeline += " "+str(columns[i]["nodes"][j]["nodeSedContent"][p])
-        #writeline += "\n"
-        #f.write(writeline)
-    #f.close()
     
 printColumn(columns[2], 2, newHeight[2], columns[2]["newSedContent"])
 print("")

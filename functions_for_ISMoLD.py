@@ -490,16 +490,16 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
             newTotalSedContent[p] += column["nodes"][j]["nodeSedContent"][p]
     newTotalHeight = columnDensity/rho0
     
-    if (newHeight - newTotalHeight < -1e-8 or newHeight - newTotalHeight > 1e-8):
-        print("totalHeight Mismatch:", newHeight - newTotalHeight, i, sedContentChange)
-        printColumn(column, i, newHeight, newSedContent)
-        exit()
-    elif(newSedContent[0] - newTotalSedContent[0] < -1e-8 or newSedContent[0] - newTotalSedContent[0] > 1e-8):
-        print("sedContent 0 Mismatch:", newSedContent[0] - newTotalSedContent[0], sedContentChange, i)
-        exit()
-    elif(newSedContent[1] - newTotalSedContent[1] < -1e-8 or newSedContent[1] - newTotalSedContent[1] > 1e-8):
-        print("sedContent 1 Mismatch:", newSedContent[1] - newTotalSedContent[1], sedContentChange, i)
-        exit()
+    #if (newHeight - newTotalHeight < -1e-8 or newHeight - newTotalHeight > 1e-8):
+        #print("totalHeight Mismatch:", newHeight - newTotalHeight, i, sedContentChange)
+        #printColumn(column, i, newHeight, newSedContent)
+        #exit()
+    #elif(newSedContent[0] - newTotalSedContent[0] < -1e-8 or newSedContent[0] - newTotalSedContent[0] > 1e-8):
+        #print("sedContent 0 Mismatch:", newSedContent[0] - newTotalSedContent[0], sedContentChange, i)
+        #exit()
+    #elif(newSedContent[1] - newTotalSedContent[1] < -1e-8 or newSedContent[1] - newTotalSedContent[1] > 1e-8):
+        #print("sedContent 1 Mismatch:", newSedContent[1] - newTotalSedContent[1], sedContentChange, i)
+        #exit()
         
     maxNode = len(column["nodes"]) - 1 ## Start maxNode before p loop for if the first iteration made a new node, it may not directly become the new maxNode for it would leave the "old" maxNode underfilled.
     if (maxNode == -1): maxNode = 0
@@ -574,4 +574,15 @@ def erodeNodes(p, column, newSedContent, rho0):
         j-=1
 
     return column
+
+
+
+
+
+def subsidence (columns, imax, subsidenceRate, nrOfGrainSizes):
+    for i in range(imax):
+        columns[i]["bedrockHeight"] = columns[i]["bedrockHeight"]-subsidenceRate*(imax-i)
+        columns[i]["totalHeight"] = max( columns[i]["totalHeight"]-subsidenceRate*(imax-i) , columns[i]["bedrockHeight"]) 
+  
+    return columns
 
