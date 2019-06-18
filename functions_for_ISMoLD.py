@@ -1,10 +1,14 @@
 import math
 import os 
+from decimal import Decimal
 
-trace = True
 trace = False
-
+#trace = True ## Keep track in the terminal wether there was deposition, erosion or both
+    
 def makeDirectories():
+    if (not os.path.isdir("ISMolD_outputdata")):
+        os.mkdir("ISMolD_outputdata")
+        
     if (not os.path.isdir("ISMolD_outputdata/relief")):
         os.mkdir("ISMolD_outputdata/relief")
 
@@ -33,8 +37,8 @@ def printColumn(column, i, newHeight, newSedContent):
     print("totalSedContent:", column["totalSedContent"])
     for j in range(len(column["nodes"])):
         print(j, column["nodes"][j])
-    print("Summed:", newTotalHeight, newTotalSedContent)
-    print("Expected:", newHeight, newSedContent)
+    print("Summed:  ", Decimal(newTotalHeight), Decimal(newTotalSedContent[0]), Decimal(newTotalSedContent[1]))
+    print("Expected:", Decimal(newHeight), Decimal(newSedContent[0]), Decimal(newSedContent[1]))
     print("")
 
 
@@ -43,6 +47,12 @@ def printColumn(column, i, newHeight, newSedContent):
 
 
 def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
+    
+    #if (i==5): 
+        #trace = False
+    #else:
+        #trace = False
+    
     nrOfGrainSizes = len(newSedContent)
     
     current_nodeSedContent = list(range(nrOfGrainSizes))
@@ -71,7 +81,7 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
     ## Deposition ##
     ##------------##
     elif ( (newHeight - column["oldHeight"]) > 0 and all( (newSedContent[q]-column["oldSedContent"][q])>=0 for q in range(nrOfGrainSizes)) ): 
-        if (trace): print("ONLY DEPOSITION")
+        if (trace): print("ONLY DEPOSITION", i)
         
         flowFractions = list(range(nrOfGrainSizes))
         
@@ -188,7 +198,7 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
     ## Erosion ##
     ##---------##
     elif ( (newHeight - column["oldHeight"]) < 0 and all( (newSedContent[q]-column["oldSedContent"][q])<=0 for q in range(nrOfGrainSizes)) ):  ## Erosion
-        if (trace): print("ONLY EROSION")
+        if (trace): print("ONLY EROSION", i)
         #erosionFractions = list(range(nrOfGrainSizes))
         erosionContent = list(range(nrOfGrainSizes))
         
@@ -243,27 +253,30 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
             maxNode = 0
         else:
             j=maxNode
-        
-        nextNodeFraction = list(range(nrOfGrainSizes))
-        for j in range(maxNode):
-            nextNodeContentSum = 0
-            for p in range(nrOfGrainSizes):
-                nextNodeContentSum += column["nodes"][j+1]["nodeSedContent"][p]
-                
-            if (nextNodeContentSum == 0): print("Error! nextNodeContentSum = 0", column)
-            for p in range (nrOfGrainSizes):
-                nextNodeFraction[p] = column["nodes"][j+1]["nodeSedContent"][p]/nextNodeContentSum
-            if (column["nodes"][j]["density"] < rho0 and j < maxNode):
-                currentDensity = column["nodes"][j]["density"]
-                missingDensity = rho0 - column["nodes"][j]["density"]
-                movedDensity = min(missingDensity, column["nodes"][j+1]["density"])
-                column["nodes"][j]["density"] += movedDensity 
-                column["nodes"][j+1]["density"] -= movedDensity 
+        if (maxNode > 0):
+            nextNodeFraction = list(range(nrOfGrainSizes))
+            for j in range(maxNode):
+                nextNodeContentSum = 0
                 for p in range(nrOfGrainSizes):
-                    column["nodes"][j]["nodeSedContent"][p] += (movedDensity/rho0) * nextNodeFraction[p]
-                    column["nodes"][j+1]["nodeSedContent"][p] -= (movedDensity/rho0) * nextNodeFraction[p]
-        if (column["nodes"][maxNode]["density"] <= 0):
-            del column["nodes"][maxNode]
+                    nextNodeContentSum += column["nodes"][j+1]["nodeSedContent"][p]
+                    
+                if (nextNodeContentSum == 0): print("Error! nextNodeContentSum = 0", column)
+                for p in range (nrOfGrainSizes):
+                    nextNodeFraction[p] = column["nodes"][j+1]["nodeSedContent"][p]/nextNodeContentSum
+                if (column["nodes"][j]["density"] < rho0 and j < maxNode):
+                    currentDensity = column["nodes"][j]["density"]
+                    missingDensity = rho0 - column["nodes"][j]["density"]
+                    movedDensity = min(missingDensity, column["nodes"][j+1]["density"])
+                    column["nodes"][j]["density"] += movedDensity 
+                    column["nodes"][j+1]["density"] -= movedDensity 
+                    for p in range(nrOfGrainSizes):
+                        column["nodes"][j]["nodeSedContent"][p] += (movedDensity/rho0) * nextNodeFraction[p]
+                        column["nodes"][j+1]["nodeSedContent"][p] -= (movedDensity/rho0) * nextNodeFraction[p]
+            if (len(column["nodes"]) > 0):
+                if (column["nodes"][maxNode]["density"] <= 0):
+                    del column["nodes"][maxNode]
+            else:
+                print("Error, node "+str(maxNode)+" in column "+str(i)+" cannot be deleted for it does not exist", column)
             
             
             
@@ -273,7 +286,7 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
     ## Both Deposition and Erosion ##
     ##-----------------------------##
     else: 
-        if (trace): print("Both Deposition and Erosion")
+        if (trace): print("Both Deposition and Erosion", i)
 
         ## First erode all material
         erosionContent = list(range(nrOfGrainSizes))
@@ -479,29 +492,33 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
     maxNode = len(column["nodes"])-1
     if (maxNode < 0): maxNode = 0
     
-    #if (maxNode != 0)
-    for j in range(maxNode+1):
-        columnDensity += column["nodes"][j]["density"]
-        if(column["nodes"][j]["density"] < rho0 and j < maxNode): 
-            print("Error, column not properly filled:")
+    if (len(column["nodes"]) > 0):
+        for j in range(maxNode+1):
+            columnDensity += column["nodes"][j]["density"]
+            if(column["nodes"][j]["density"] < rho0 and j < maxNode): 
+                print("Error, column not properly filled:")
+                printColumn(column, i, newHeight, newSedContent)
+                exit()
+            for p in range(nrOfGrainSizes):
+                newTotalSedContent[p] += column["nodes"][j]["nodeSedContent"][p]
+        newTotalHeight = columnDensity/rho0
+        
+        #if (i==5): print("Height Mismatch column "+str(i)+":", newHeight - newTotalHeight)
+        if (newHeight-column["bedrockHeight"] - newTotalHeight < -1e-10 or newHeight-column["bedrockHeight"] - newTotalHeight > 1e-10):
+            print("")
+            print("totalHeight Mismatch:", newHeight - newTotalHeight, i, sedContentChange)
             printColumn(column, i, newHeight, newSedContent)
             exit()
-        for p in range(nrOfGrainSizes):
-            newTotalSedContent[p] += column["nodes"][j]["nodeSedContent"][p]
-    newTotalHeight = columnDensity/rho0
-    
-    #if (newHeight - newTotalHeight < -1e-8 or newHeight - newTotalHeight > 1e-8):
-        #print("totalHeight Mismatch:", newHeight - newTotalHeight, i, sedContentChange)
-        #printColumn(column, i, newHeight, newSedContent)
-        #exit()
-    #elif(newSedContent[0] - newTotalSedContent[0] < -1e-8 or newSedContent[0] - newTotalSedContent[0] > 1e-8):
-        #print("sedContent 0 Mismatch:", newSedContent[0] - newTotalSedContent[0], sedContentChange, i)
-        #exit()
-    #elif(newSedContent[1] - newTotalSedContent[1] < -1e-8 or newSedContent[1] - newTotalSedContent[1] > 1e-8):
-        #print("sedContent 1 Mismatch:", newSedContent[1] - newTotalSedContent[1], sedContentChange, i)
-        #exit()
+        elif(newSedContent[0] - newTotalSedContent[0] < -1e-10 or newSedContent[0] - newTotalSedContent[0] > 1e-10):
+            print("")
+            print("sedContent 0 Mismatch:", newSedContent[0] - newTotalSedContent[0], sedContentChange, i)
+            exit()
+        elif(newSedContent[1] - newTotalSedContent[1] < -1e-10 or newSedContent[1] - newTotalSedContent[1] > 1e-10):
+            print("")
+            print("sedContent 1 Mismatch:", newSedContent[1] - newTotalSedContent[1], sedContentChange, i)
+            exit()
         
-    maxNode = len(column["nodes"]) - 1 ## Start maxNode before p loop for if the first iteration made a new node, it may not directly become the new maxNode for it would leave the "old" maxNode underfilled.
+    maxNode = len(column["nodes"]) - 1 
     if (maxNode == -1): maxNode = 0
     
     sedContentSum = 0
@@ -521,8 +538,10 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
                 print("Error, something < 0")
                 printColumn(column, i, newHeight, newSedContent)
                 exit()
-            
-    if (len(column["nodes"][maxNode]["nodeSedContent"]) < 2):
+                
+    if(len(column["nodes"]) == 0):
+        return column
+    elif (len(column["nodes"][maxNode]["nodeSedContent"]) < 2):
         print("maxNode", maxNode)
         print("Major error, not enough grain sizes in nodeSedContent!:", column)
         exit()
@@ -536,6 +555,10 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
 def erodeNodes(p, column, newSedContent, rho0):
     sedContentChange = column["oldSedContent"][p] - newSedContent[p]
     erosionContent = sedContentChange 
+    
+    before = 0
+    for j in range(len(column["nodes"])):
+        before += column["nodes"][j]["density"]/2700
     
     maxNode = len(column["nodes"]) - 1 ## -1 since node count starts at 0 and len() starts at 1
 
@@ -559,20 +582,28 @@ def erodeNodes(p, column, newSedContent, rho0):
             exit()
             
         if (erosionContent > current_nodeSedContent ): ## Cross a node boundary
-            #print("Erosion crossing boundary")
+            if (trace): print("Erosion crossing boundary")
             erosionContent -= current_nodeSedContent 
             column["nodes"][j]["density"] -= current_nodeSedContent * rho0
-            if (erosionContent < 1e-13): erosionContent = 0
+            if (erosionContent < 1e-20): erosionContent = 0
             column["nodes"][j]["nodeSedContent"][p] = 0
         else: ## Change stays within one node:
             if (trace): print("Erosion within 1 node")
             newNodeSedContent = current_nodeSedContent - erosionContent
-            column["nodes"][j]["nodeSedContent"][p] = newNodeSedContent
+            #if (trace): print("Erosion within 1 node", "newNodeSedContent:", Decimal(newNodeSedContent))
+            #column["nodes"][j]["nodeSedContent"][p] = newNodeSedContent
+            column["nodes"][j]["nodeSedContent"][p] -= erosionContent
             column["nodes"][j]["density"] -= erosionContent*rho0
-            if (newNodeSedContent < 0): print("Error, newNodeSedContent is negative:", newNodeSedContent)
+            if (newNodeSedContent < 0): 
+                print("Error, newNodeSedContent is negative:", newNodeSedContent)
+                exit()
             erosionContent = 0
         j-=1
-
+        
+    after = 0
+    for j in range(len(column["nodes"])):
+        after += column["nodes"][j]["density"]/2700
+    #print("Actual change:", Decimal(before-after), "Inteded:", Decimal(sedContentChange), "Difference:", (before-after)-sedContentChange)
     return column
 
 
@@ -580,8 +611,9 @@ def erodeNodes(p, column, newSedContent, rho0):
 
 
 def subsidence (columns, imax, subsidenceRate, nrOfGrainSizes):
-    for i in range(imax):
+    for i in range(imax+1):
         columns[i]["bedrockHeight"] = columns[i]["bedrockHeight"]-subsidenceRate*(imax-i)
+        columns[i]["oldHeight"] = max( columns[i]["oldHeight"]-subsidenceRate*(imax-i) , columns[i]["bedrockHeight"])
         columns[i]["totalHeight"] = max( columns[i]["totalHeight"]-subsidenceRate*(imax-i) , columns[i]["bedrockHeight"]) 
   
     return columns

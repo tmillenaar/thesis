@@ -14,14 +14,14 @@ saveImage = True
 
 
 
-detailFactor = 20
+detailFactor = 20 ## Mesh size for the plot. Higher detailFactor creates a smoother bedrock slope. Example: if detailFactor = 10, each mesh cell is divided into 10x10 subcells
 animationInterval = 40 ## Time interval between frames in ms
 
 
 if (detailFactor <= 0): detailFactor = 1 ## Though I cannot imagine someone wants negative detail ^^' 
 
 if (not os.path.isdir("ISMolD_outputdata/nodes/time0")):
-    print("Error, directory ISMolD_outputdata/nodes/time0 does not exist.")
+    print("Error, ISMolD_outputdata/nodes/time0 does not exist.")
     exit()
 
 print("Determining the extent of the data...", end="\r")
@@ -69,6 +69,10 @@ ax.set_title("Sediment content per node")
 ax.invert_yaxis()
 
 def update(t):
+    if (t == (max_timestep-1)):
+        print("Saving animation ...                                                        ", end="\r")
+    else:
+        print("Making animation (This may take several minutes)   "+str( "{0:.2f}".format( (math.ceil(100000*t/(max_timestep-1)))/1000 ) )+"%               ", end="\r") ##Track progress
     label = 't = {0}0 kyr'.format(t)
     #print(label)
     
@@ -105,9 +109,11 @@ max_timestep = len(os.listdir("ISMolD_outputdata/relief"))-1 #-1 since file star
 
 anim = FuncAnimation(fig, update, frames=np.arange(0, max_timestep), interval=animationInterval)
 if (saveImage):
-    print("Making and Saving animation (This may take a while, maybe even several minutes) ...    ", end="\r")
+    print("Making and Saving animation (This may take several minutes) ...    ", end="\r")
     anim.save('sedimentContentInNodes.gif', dpi=80, writer='imagemagick')
-
+    os.system("xdg-open sedimentContentInNodes.gif")
+    
+print("Done", end="\r")
 if (showAnimation):
     print("Showing figure...    ")
     plt.show()
