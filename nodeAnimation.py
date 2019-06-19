@@ -15,7 +15,7 @@ saveImage = True
 
 
 detailFactor = 20 ## Mesh size for the plot. Higher detailFactor creates a smoother bedrock slope. Example: if detailFactor = 10, each mesh cell is divided into 10x10 subcells
-animationInterval = 40 ## Time interval between frames in ms
+animationInterval = 80 ## Time interval between frames in ms
 
 
 if (detailFactor <= 0): detailFactor = 1 ## Though I cannot imagine someone wants negative detail ^^' 
@@ -110,7 +110,7 @@ max_timestep = len(os.listdir("ISMolD_outputdata/relief"))-1 #-1 since file star
 anim = FuncAnimation(fig, update, frames=np.arange(0, max_timestep), interval=animationInterval)
 if (saveImage):
     print("Making and Saving animation (This may take several minutes) ...    ", end="\r")
-    anim.save('sedimentContentInNodes.gif', dpi=80, writer='imagemagick')
+    anim.save('sedimentContentInNodes.gif', dpi=200, writer='imagemagick')
     os.system("xdg-open sedimentContentInNodes.gif")
     
 print("Done", end="\r")

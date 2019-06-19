@@ -15,6 +15,7 @@ makeDirectories()
 
 enableSubsidence = False
 animateHeight = False
+plotForcing = False
 plotNodes = False
 spikeTest = False
 pbdtrace = False
@@ -23,10 +24,11 @@ testSedTransport = False
 ##Uncomment if not desired:
 enableSubsidence = True
 
-#plotHeigt = True 
-#plotNodes = True
+animateHeight = True 
+plotForcing = True
+plotNodes = True
 
-##spikeTest = True
+#spikeTest = True
 #pbdtrace = True
 #testSedTransport = True
 
@@ -42,8 +44,8 @@ k= list(range(nrOfGrainSizes))
 k[0]= 1*3.2e-4                # Gravel diffusivity (m2/s)
 k[1]= 2*3.2e-4                # Sand diffusivity (m2/s)
 q0= list(range(nrOfGrainSizes))
-q0[0]= 3*1.e-6                # Gravel input (m2/s)
-q0[1]= 2*1.e-6                # Sand input (m2/s)
+q0[0]= 2*1.e-7                # Gravel input (m2/s)
+q0[1]= 1*1.e-7                # Sand input (m2/s)
 subsidenceRate = 1e-6         # Subsidence rate at the proximal end of the basin (m/yr), negative values result in uplift
 spikeLocation = 50             # Only relevant if spikeTest == True
 
@@ -80,10 +82,6 @@ OutputPerGrainSize = [0,0]
 maxVolumeLoss = 0
 nodeOutputTimestep = 0
 
-totalSedInputThroughTime0 = []
-totalSedInputThroughTime1 = []
-totalSedOutputThroughTime0 = []
-totalSedOutputThroughTime1 = []
 columns = {}
 for i in range(imax+1):
     x[i]=i
@@ -106,6 +104,10 @@ nr_topo_files = len(listdir("ISMolD_outputdata/relief")) #-1 since file starts a
 if (nr_topo_files > 1):
     os.system('rm ISMolD_outputdata/relief/topography*.txt')
     os.system('rm -r -f ISMolD_outputdata/nodes/*')
+## Clear or create forcing file
+f = open("ISMolD_outputdata/forcing.txt", "w")
+f.write("")
+f.close()
 
 ## Spike test:
 #  Note: the code cannot properly deal with intense spikes with a width of 1 dx (except for i==0), thus the the spike is 2*dx wide.
@@ -140,8 +142,11 @@ t= 0
 while (t < tmax):
     
     # Varying sediment input or diffusivity through time can be set here:
-    q0[0] = max(0, 0.5e-6*math.sin(3.1415 * 4* t/tmax))
-    q0[1] = max(0, 0.5e-6*math.sin(3.1415 * 4* t/tmax))
+    #q0[0] = max(0, 0.5e-6*math.sin(3.1415 * 4* t/tmax))
+    #q0[1] = max(0, 0.5e-6*math.sin(3.1415 * 4* t/tmax))
+    
+    k[0] = max(1e-6, 1*3.2e-4*math.sin(3.1415 * 6* t/tmax)+1*3.2e-4)
+    k[1] = max(1e-6, 2*3.2e-4*math.sin(3.1415 * 6* t/tmax)+2*3.2e-4)
     
     #if(t>0.4*tmax): 
         #for p in range(nrOfGrainSizes):
@@ -185,39 +190,6 @@ while (t < tmax):
         columns[i]["oldSedContent"] = columns[i]["totalSedContent"].copy()
         
     if (enableSubsidence): subsidence (columns, imax, dt*subsidenceRate/yr2sec, nrOfGrainSizes)
-    
-    #if (columns[imax-8]["totalHeight"] > columns[imax-6]["totalHeight"]): ## Slope goes down to the right
-        #print("SLOPE TO RIGHT")
-        #print(columns[imax-1]["totalHeight"]-columns[imax-1]["bedrockHeight"])
-        
-    ## Keep track of volume balance:
-    time.append(t)
-    for p in range(nrOfGrainSizes):
-        totalInput+= q0[p]*dt
-        InputPerGrainSize[p] += q0[p]*dt
-        if (p == 0):
-            totalSedInputThroughTime0.append(InputPerGrainSize[p])
-        if (p == 1):
-            totalSedInputThroughTime1.append(InputPerGrainSize[p])
-            
-            
-        if (columns[imax-1]["totalHeight"] > columns[imax]["totalHeight"]): ## Slope goes down to the right
-            output = ( (k[p]*dt)/(dx*dx) )*( (columns[imax-1]["totalHeight"]) - (columns[imax]["totalHeight"]) )*dx ## Volume leaving = height*dx at i=imax, which is set to 0
-            output = min(output, sedContentInActiveLayer[p,i-1])
-            #totalOutput += output
-            #OutputPerGrainSize[p] += ( (k[p]*dt)/(dx*dx) )*( columns[imax-1]["totalHeight"] - (columns[imax]["totalHeight"]) )*dx
-            if (p==0):
-                totalSedOutputThroughTime0.append(OutputPerGrainSize[p])
-            if (p==1):
-                totalSedOutputThroughTime1.append(OutputPerGrainSize[p])
-        else:
-            totalOutput+= 0
-            OutputPerGrainSize[p] += 0
-            if (p==0):
-                totalSedOutputThroughTime0.append(OutputPerGrainSize[p])
-            if (p==1):
-                totalSedOutputThroughTime1.append(OutputPerGrainSize[p])
-            
     
     ## Set active layer properties
     for i in range(imax+1):
@@ -352,10 +324,6 @@ while (t < tmax):
         for p in range(nrOfGrainSizes):
             columns[i]["totalSedContent"][p] = columns[i]["newSedContent"][p]
     
-    #print("type:",newHeight.dtype, newSedContent.dtype, columns[0]["totalHeight"].dtype)
-    #print("type:",newHeight[0], columns[0]["totalHeight"], newSedContent[0,0], columns[0]["nodes"][0]["nodeSedContent"])
-    #print(np.dtype(newSedContent[0,0]))
-    #print("")
     if (t >= tout):
         
         makeTimeNodeDirectory(nodeOutputTimestep)
@@ -383,6 +351,23 @@ while (t < tmax):
             writeline += "\n"
             f.write(writeline)
         f.close()
+        
+        ## Write out forcing
+        f = open("ISMolD_outputdata/forcing.txt", "a")
+        writeline = str(t)+" "+str(sum(InputPerGrainSize))
+        for p in range(nrOfGrainSizes):
+            writeline += " "+str(InputPerGrainSize[p])
+        writeline += " "+str(sum(OutputPerGrainSize))
+        for p in range(nrOfGrainSizes):
+            writeline += " "+str(OutputPerGrainSize[p])
+        writeline += " "+str(sum(k))
+        for p in range(nrOfGrainSizes):
+            writeline += " "+str(k[p])  
+        writeline += "\n"
+        f.write(writeline)
+        f.close()
+        
+        
         tout = tout + dtout
         
     t += dt
@@ -400,15 +385,12 @@ depositVolumeBelow0= 0
 DepositVolPerGrainSize = [0,0]
 totalGrainSizeFraction = [0,0]
 for i in range(imax+1):
-    #totalHeight[i]= columns[i]["totalHeight"]
     totalVolumeBelow0 += -columns[i]["bedrockHeight"]*dx
     if(columns[i]["totalHeight"]-columns[i]["bedrockHeight"] == 0):
         depositVolumeBelow0 += 0
     elif(columns[i]["totalHeight"] > 0):
-        print("Too much", i, columns[i]["totalHeight"], columns[i]["bedrockHeight"])
         depositVolumeBelow0 += -columns[i]["bedrockHeight"]*dx ## "-" for bedrockHeight value is negative during subsidence
     else:
-        print("Too little", i, columns[i]["bedrockHeight"] - columns[i]["totalHeight"], columns[i]["bedrockHeight"])
         depositVolumeBelow0 += (columns[i]["totalHeight"] - columns[i]["bedrockHeight"])*dx
     totalDepositVolume+= (columns[i]["totalHeight"]-columns[i]["bedrockHeight"])*dx
     for p in range(nrOfGrainSizes):
@@ -464,46 +446,25 @@ for p in range(nrOfGrainSizes):
 print("")
 print("Node volume error:", str(totalNodeVolume+totalOutput-totalInput)+"m^3")
 print("Node volume error in %:", str(100*(totalNodeVolume+totalOutput-totalInput)/totalInput)+"%")
+print("")
 print("totalDepositVolume-totalNodeVolume:", Decimal(totalDepositVolume), Decimal(totalNodeVolume), totalDepositVolume-totalNodeVolume)
 print(Decimal(totalDepositVolume))
 print(Decimal(totalNodeVolume))
 print("")
 
-
-#fig, ax1 = plt.subplots()
-
-#ax1.plot(time, totalSedcontenti0, label="Gravel")
-#ax1.plot(time, totalSedcontenti1, label="Sand")
-
-#ax2 = ax1.twinx()
-#ax2.plot(time, activeLayeri0, linestyle="--", label="Gravel in active layer")
-#ax2.plot(time, activeLayeri1, linestyle="--", label="Sand in active layer")
-
-#plt.title("Total sed content in column 15 through time")
-#fig.legend()
-##plt.show()
-
-fig, ax1 = plt.subplots()
-
-ax1.plot(time, totalSedInputThroughTime0, label="Gravel Input")
-ax1.plot(time, totalSedInputThroughTime1, label="Sand Input")
-
-ax2 = ax1.twinx()
-ax2.plot(time, totalSedOutputThroughTime0, linestyle="--", label="Gravel output")
-ax2.plot(time, totalSedOutputThroughTime1, linestyle="--", label="Sand output")
-
-plt.title("Total sediment input and output through time")
-fig.legend()
-plt.show()
-
+if (plotForcing):
+    print("Plotting Forcing...")
+    os.system("python3 forcingPlot.py")
+    
 if (animateHeight):
-    print("Plotting...")
+    print("Animating relief...")
     os.system("python3 animate_ISMoLD.py")
     
 if (plotNodes):
-    print("Plotting...")
+    #print("Plotting...")
     os.system("python3 nodeAnimation.py")
     
+
 
 
 
