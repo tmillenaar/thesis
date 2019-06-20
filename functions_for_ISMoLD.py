@@ -42,10 +42,25 @@ def printColumn(column, i, newHeight, newSedContent):
     print("")
 
 
-
-
-
-
+def setPeriodicForcingValues(t, nrOfGrainSizes, periods, amplitudes, averages, minval="NULL"):
+    if (type(periods) == list):
+        if (len(periods) == 0 or len(amplitudes) == 0 or len(averages) == 0):
+            print("Error, input given for setPeriodicForcingsubsidenceRate is not sufficient.")
+            exit()
+        if (len(periods) != len(amplitudes) or len(periods) != len(averages) or len(periods) != nrOfGrainSizes):
+            print("Error, the number of periods, amplitudes and averages must be the same. You supplied: nr of periods="+str(len(periods))+", nr of amplitudes="+str(len(amplitudes))+", nr of averages="+str(len(averages))+" and nrOfGrainSizes="+str(nrOfGrainSizes)+".")
+            exit()
+    
+    if (type(periods) != list):
+        value = amplitudes*math.sin(2*3.1415 * t * 1/periods)+averages
+        if (minval!="NULL"): value = max(minval, value)
+    else: ## If multiple values are supplied
+        value = 0
+        for i in range(len(periods)):
+            value += amplitudes[i]*math.sin(2*3.1415 * t * 1/periods[i])+averages[i]
+        if (minval!="NULL"): value = max(minval, value)
+    return value
+        
 def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
     
     #if (i==5): 
@@ -104,7 +119,7 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
         
         while (depositDensity > 0):
             
-            ## Obtain current values:
+            ## Obtain current subsidenceRate:
             try:
                 current_node_density = column["nodes"][j]["density"]
             except:
@@ -224,7 +239,7 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
         erosionDensity = rho0 * ( column["oldHeight"] - newHeight ) ## Make this dependent on the nodes!!!!
     
         if (j<0): print("Error, cannot remove node", j)
-        ## Obtain current values:
+        ## Obtain current subsidenceRate:
         try:
             current_node_density = column["nodes"][j]["density"]
         except:

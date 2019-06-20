@@ -17,6 +17,7 @@ enableSubsidence = False
 animateHeight = False
 plotForcing = False
 plotNodes = False
+animateNodes = False
 spikeTest = False
 pbdtrace = False
 testSedTransport = False
@@ -26,7 +27,9 @@ enableSubsidence = True
 
 plotForcing = True
 #animateHeight = True 
-plotNodes = True
+#plotNodes = True
+animateNodes = True
+
 
 #spikeTest = True
 #pbdtrace = True
@@ -36,7 +39,7 @@ yr2sec = 60*60*24*365.25      #nr of seconds in a year
 
 dx= 1e3                      # lateral grid spacing (m)
 imax= 100                     # number of nodes
-tmax= 500000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+tmax= 100000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
 dtout = tmax/100              # nr of years between write output
 dtout_progress = 10*yr2sec    # nr of years between progress bar update
 nrOfGrainSizes = 2
@@ -46,11 +49,45 @@ k[1]= 2*3.2e-4                # Sand diffusivity (m2/s)
 q0= list(range(nrOfGrainSizes))
 q0[0]= 2*1.e-7                # Gravel input (m2/s)
 q0[1]= 1*1.e-7                # Sand input (m2/s)
-subsidenceRate = 1e-7         # Subsidence rate at the proximal end of the basin (m/yr), negative values result in uplift
+subsidenceRate = 1e-5         # Subsidence rate at the proximal end of the basin (m/yr), negative values result in uplift
 spikeLocation = 50             # Only relevant if spikeTest == True
 
 transportDensity = 2700
 #transportPorosity = 0.3
+
+# Varying sediment input, diffusivity and subsidenceRate through time can be set here. Within this function you can define time dependent values at will, leaving you with a lot of freedom. Please be reasonable when making equations or setting values, not all values result in a good outcome of the model. Negative diffusivity for example will yield an error, as will negative input. The subsidenceRate can be negative, this results in uplift. 
+def setBoudnaryCondtitionValues(t, tmax, nrOfGrainSizes, subsidenceRate):
+    yr2sec = 60*60*24*365.25      #nr of seconds in a year
+    ## Varying sediment input or diffusivity through time can be set here:
+    #q0[0] = max(0, 0.5e-6*math.sin(3.1415 * 8* t/tmax))
+    #q0[1] = max(0, 0.5e-6*math.sin(3.1415 * 8* t/tmax))
+    
+    #k[0] = max(1e-6, 1*3.2e-4*math.sin(3.1415 * 6* t/tmax)+1*3.2e-4)
+    #k[1] = max(1e-6, 1*3.2e-4*math.sin(3.1415 * 6* t/tmax)+2*3.2e-4)
+    
+    ## setPeriodicForcingValues(t, nrOfGrainSizes, periods, amplitude, averages, minval="NULL")   note: mival is optional!
+    q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [20000*yr2sec, 30000*yr2sec], [0.5e-6, 0.5e-6] , [0.5e-6, 0.5e-6], 0)
+    q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, 20000*yr2sec, 0.5e-6, 0.5e-6, 0)
+    subsidenceRate = setPeriodicForcingValues(t, nrOfGrainSizes, 75000*yr2sec, 1e-5, 1e-7)
+    #print(t, nrOfGrainSizes, 25000, 1e-5, 0, subsidenceRate)
+    #subsidenceRate = 1e-6*math.sin(3.1415 * 3* t/tmax)
+    #subsidenceRate = 0
+    #q0[0] = 0
+    #q0[1] = 0
+    k[0]= 1*3.2e-4                # Gravel diffusivity (m2/s)
+    k[1]= 2*3.2e-4                # Sand diffusivity (m2/s)
+    return q0, k, subsidenceRate
+
+
+
+## ## ## ## ## ## ## ## ## ## ##
+##   End of modifiable part   ##
+## ## ## ## ## ## ## ## ## ## ##
+
+
+
+
+
 
 ## Initialize:
 totalSedInputThroughTime0 = list(range(nrOfGrainSizes))
@@ -141,14 +178,7 @@ if (spikeTest):
 t= 0
 while (t < tmax):
     
-    # Varying sediment input or diffusivity through time can be set here:
-    q0[0] = max(0, 0.5e-6*math.sin(3.1415 * 12* t/tmax))
-    q0[1] = max(0, 0.5e-6*math.sin(3.1415 * 12* t/tmax))
-    
-    k[0] = max(1e-6, 1*3.2e-4*math.sin(3.1415 * 8* t/tmax)+2*3.2e-4)
-    k[1] = max(1e-6, 1*3.2e-4*math.sin(3.1415 * 8* t/tmax)+3*3.2e-4)
-    
-    subsidenceRate = 1e-6*math.sin(3.1415 * 3* t/tmax)
+    q0, k, subsidenceRate = setBoudnaryCondtitionValues(t, tmax, nrOfGrainSizes, subsidenceRate)
     
     #if(t>0.4*tmax): 
         #for p in range(nrOfGrainSizes):
@@ -361,12 +391,19 @@ while (t < tmax):
         writeline = str(t)+" "+str(totalInput)
         for p in range(nrOfGrainSizes):
             writeline += " "+str(InputPerGrainSize[p])
+        writeline += " "+str(sum(q0))
+        for p in range(nrOfGrainSizes):
+            writeline += " "+str(q0[p])
         writeline += " "+str(totalOutput)
         for p in range(nrOfGrainSizes):
             writeline += " "+str(OutputPerGrainSize[p])
+        writeline += " "+str(sum(sedOut[:,imax-1]))
+        for p in range(nrOfGrainSizes):
+            writeline += " "+str(sedOut[p,imax-1])
         writeline += " "+str(sum(k))
         for p in range(nrOfGrainSizes):
             writeline += " "+str(k[p])  
+        writeline += " "+str(subsidenceRate)
         writeline += "\n"
         f.write(writeline)
         f.close()
@@ -464,7 +501,7 @@ if (animateHeight):
     print("Animating relief...")
     os.system("python3 animate_ISMoLD.py")
     
-if (plotNodes):
+if (animateNodes):
     #print("Plotting...")
     os.system("python3 nodeAnimation.py")
     
