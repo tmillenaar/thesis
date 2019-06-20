@@ -24,8 +24,8 @@ testSedTransport = False
 ##Uncomment if not desired:
 enableSubsidence = True
 
-animateHeight = True 
 plotForcing = True
+#animateHeight = True 
 plotNodes = True
 
 #spikeTest = True
@@ -36,7 +36,7 @@ yr2sec = 60*60*24*365.25      #nr of seconds in a year
 
 dx= 1e3                      # lateral grid spacing (m)
 imax= 100                     # number of nodes
-tmax= 100000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+tmax= 500000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
 dtout = tmax/100              # nr of years between write output
 dtout_progress = 10*yr2sec    # nr of years between progress bar update
 nrOfGrainSizes = 2
@@ -46,7 +46,7 @@ k[1]= 2*3.2e-4                # Sand diffusivity (m2/s)
 q0= list(range(nrOfGrainSizes))
 q0[0]= 2*1.e-7                # Gravel input (m2/s)
 q0[1]= 1*1.e-7                # Sand input (m2/s)
-subsidenceRate = 1e-6         # Subsidence rate at the proximal end of the basin (m/yr), negative values result in uplift
+subsidenceRate = 1e-7         # Subsidence rate at the proximal end of the basin (m/yr), negative values result in uplift
 spikeLocation = 50             # Only relevant if spikeTest == True
 
 transportDensity = 2700
@@ -142,11 +142,13 @@ t= 0
 while (t < tmax):
     
     # Varying sediment input or diffusivity through time can be set here:
-    #q0[0] = max(0, 0.5e-6*math.sin(3.1415 * 4* t/tmax))
-    #q0[1] = max(0, 0.5e-6*math.sin(3.1415 * 4* t/tmax))
+    q0[0] = max(0, 0.5e-6*math.sin(3.1415 * 12* t/tmax))
+    q0[1] = max(0, 0.5e-6*math.sin(3.1415 * 12* t/tmax))
     
-    k[0] = max(1e-6, 1*3.2e-4*math.sin(3.1415 * 6* t/tmax)+1*3.2e-4)
-    k[1] = max(1e-6, 2*3.2e-4*math.sin(3.1415 * 6* t/tmax)+2*3.2e-4)
+    k[0] = max(1e-6, 1*3.2e-4*math.sin(3.1415 * 8* t/tmax)+2*3.2e-4)
+    k[1] = max(1e-6, 1*3.2e-4*math.sin(3.1415 * 8* t/tmax)+3*3.2e-4)
+    
+    subsidenceRate = 1e-6*math.sin(3.1415 * 3* t/tmax)
     
     #if(t>0.4*tmax): 
         #for p in range(nrOfGrainSizes):
@@ -281,6 +283,8 @@ while (t < tmax):
     for p in range(nrOfGrainSizes):
         totalOutput += sedIn[p,imax]*dx
         OutputPerGrainSize[p] += sedIn[p,imax]*dx
+        totalInput += q0[p]*dt
+        InputPerGrainSize[p] += q0[p]*dt
         
     ## Loop through columns for a second time to fix the minima and maxima:
     for i in range(imax): 
@@ -354,10 +358,10 @@ while (t < tmax):
         
         ## Write out forcing
         f = open("ISMolD_outputdata/forcing.txt", "a")
-        writeline = str(t)+" "+str(sum(InputPerGrainSize))
+        writeline = str(t)+" "+str(totalInput)
         for p in range(nrOfGrainSizes):
             writeline += " "+str(InputPerGrainSize[p])
-        writeline += " "+str(sum(OutputPerGrainSize))
+        writeline += " "+str(totalOutput)
         for p in range(nrOfGrainSizes):
             writeline += " "+str(OutputPerGrainSize[p])
         writeline += " "+str(sum(k))

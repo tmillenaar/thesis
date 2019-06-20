@@ -43,6 +43,9 @@ for t in range(max_timestep):
 lowerBound = math.floor(lowerBound)        
 
 heatmapData = np.zeros(shape=(detailFactor*upperBound-detailFactor*lowerBound, detailFactor*nrColumns))
+#for i in range(heatmapData.shape[0]):
+    #for j in range(heatmapData.shape[1]):
+        #heatmapData[i,j] = -1
 
 if (upperBound == 0):
     print("Error, no data")
