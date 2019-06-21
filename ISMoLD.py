@@ -44,38 +44,30 @@ dtout = tmax/100              # nr of years between write output
 dtout_progress = 10*yr2sec    # nr of years between progress bar update
 nrOfGrainSizes = 2
 k= list(range(nrOfGrainSizes))
-k[0]= 1*3.2e-4                # Gravel diffusivity (m2/s)
-k[1]= 2*3.2e-4                # Sand diffusivity (m2/s)
+k[0]= 1*3.2e-4                # Gravel diffusivity (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
+k[1]= 2*3.2e-4                # Sand diffusivity (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
 q0= list(range(nrOfGrainSizes))
-q0[0]= 2*1.e-7                # Gravel input (m2/s)
-q0[1]= 1*1.e-7                # Sand input (m2/s)
-subsidenceRate = 1e-5         # Subsidence rate at the proximal end of the basin (m/yr), negative values result in uplift
+q0[0]= 2*1.e-7                # Gravel input (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
+q0[1]= 1*1.e-7                # Sand input (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
+subsidenceRate = 1e-5         # Subsidence rate at the proximal end of the basin (m/yr), negative values result in uplift.  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
 spikeLocation = 50             # Only relevant if spikeTest == True
 
 transportDensity = 2700
 #transportPorosity = 0.3
 
-# Varying sediment input, diffusivity and subsidenceRate through time can be set here. Within this function you can define time dependent values at will, leaving you with a lot of freedom. Please be reasonable when making equations or setting values, not all values result in a good outcome of the model. Negative diffusivity for example will yield an error, as will negative input. The subsidenceRate can be negative, this results in uplift. 
+# Varying sediment input, diffusivity and subsidenceRate through time can be set here. Within this function you can define time dependent values at will, leaving you with a lot of freedom. Please be reasonable when making equations or setting values: not all values result in a good outcome of the model. Negative diffusivity for example will yield an error, as will negative input. The subsidenceRate can be negative, this results in uplift. For periods, amplitudes and averages in setPeriodicForcingValues(), either lists or tuples can be supplied, but be consistent. If lists are supplied, the various sinusoids will combine into a more complex one.
 def setBoudnaryCondtitionValues(t, tmax, nrOfGrainSizes, subsidenceRate):
     yr2sec = 60*60*24*365.25      #nr of seconds in a year
-    ## Varying sediment input or diffusivity through time can be set here:
-    #q0[0] = max(0, 0.5e-6*math.sin(3.1415 * 8* t/tmax))
-    #q0[1] = max(0, 0.5e-6*math.sin(3.1415 * 8* t/tmax))
     
-    #k[0] = max(1e-6, 1*3.2e-4*math.sin(3.1415 * 6* t/tmax)+1*3.2e-4)
-    #k[1] = max(1e-6, 1*3.2e-4*math.sin(3.1415 * 6* t/tmax)+2*3.2e-4)
-    
-    ## setPeriodicForcingValues(t, nrOfGrainSizes, periods, amplitude, averages, minval="NULL")   note: mival is optional!
+    ###     setPeriodicForcingValues(t, nrOfGrainSizes, periods, amplitudes, averages, minval="NULL")   note: mival is optional!
     q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [20000*yr2sec, 30000*yr2sec], [0.5e-6, 0.5e-6] , [0.5e-6, 0.5e-6], 0)
-    q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, 20000*yr2sec, 0.5e-6, 0.5e-6, 0)
+    q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [30000*yr2sec, 40000*yr2sec], [0.5e-6, 0.5e-6] , [0.5e-6, 0.5e-6], 0)
+    
+    k[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [30000*yr2sec, 60000*yr2sec], [1*3.2e-4, 1*3.2e-4] , [1*3.2e-4, 1*3.2e-4], 0)
+    k[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [40000*yr2sec, 80000*yr2sec], [2*3.2e-4, 2*3.2e-4] , [2*3.2e-4, 2*3.2e-4], 0)
+    
     subsidenceRate = setPeriodicForcingValues(t, nrOfGrainSizes, 75000*yr2sec, 1e-5, 1e-7)
-    #print(t, nrOfGrainSizes, 25000, 1e-5, 0, subsidenceRate)
-    #subsidenceRate = 1e-6*math.sin(3.1415 * 3* t/tmax)
-    #subsidenceRate = 0
-    #q0[0] = 0
-    #q0[1] = 0
-    k[0]= 1*3.2e-4                # Gravel diffusivity (m2/s)
-    k[1]= 2*3.2e-4                # Sand diffusivity (m2/s)
+    
     return q0, k, subsidenceRate
 
 
