@@ -47,8 +47,8 @@ def setPeriodicForcingValues(t, nrOfGrainSizes, periods, amplitudes, averages, m
         if (len(periods) == 0 or len(amplitudes) == 0 or len(averages) == 0):
             print("Error, input given for setPeriodicForcingsubsidenceRate is not sufficient.")
             exit()
-        if (len(periods) != len(amplitudes) or len(periods) != len(averages) or len(periods) != nrOfGrainSizes):
-            print("Error, the number of periods, amplitudes and averages must be the same. You supplied: nr of periods="+str(len(periods))+", nr of amplitudes="+str(len(amplitudes))+", nr of averages="+str(len(averages))+" and nrOfGrainSizes="+str(nrOfGrainSizes)+".")
+        if (len(periods) != len(amplitudes) or len(periods) != len(averages)):
+            print("Error, the number of periods, amplitudes and averages must be the same. You supplied: nr of periods="+str(len(periods))+", nr of amplitudes="+str(len(amplitudes))+"and nr of averages="+str(len(averages))+".")
             exit()
     
     if (type(periods) != list):
