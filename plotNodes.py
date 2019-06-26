@@ -4,6 +4,7 @@ import warnings     ## Used to filter numpy warnings when opening empty text/dat
 import numpy as np  
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation 
+from matplotlib.colors import LinearSegmentedColormap
 from os import listdir
 
 saveImage = False
@@ -15,6 +16,58 @@ showAnimation = True
 
 detailFactor = 20 ## Mesh size for the plot. Higher detailFactor creates a smoother bedrock slope. Example: if detailFactor = 10, each mesh cell is divided into 10x10 subcells
 
+
+## Set custom scale:
+## blue-white-red
+#mycdict = {'red':  ((0.0, 1.0, 1.0),
+                   #(0.01, 0.0, 0.0),
+                   #(0.25, 0.0, 0.0),
+                   #(0.5, 0.8, 1.0),
+                   #(0.75, 1.0, 1.0),
+                   #(1.0, 0.4, 1.0)),
+
+         #'green': ((0.0, 1.0, 1.0),
+                   #(0.01, 0.0, 0.0),
+                   #(0.25, 0.0, 0.0),
+                   #(0.5, 0.9, 0.9),
+                   #(0.75, 0.0, 0.0),
+                   #(1.0, 0.0, 0.0)),
+
+         #'blue':  ((0.0, 1.0, 1.0),
+                   #(0.01, 0.4, 0.4),
+                   #(0.25, 1.0, 1.0),
+                   #(0.5, 1.0, 0.8),
+                   #(0.75, 0.0, 0.0),
+                   #(1.0, 0.0, 0.0))
+        #}
+        
+## blue-green-yellow
+mycdict = {'red':  ((0.0, 1.0, 1.0),
+                   (0.01, 0.0, 0.0),
+                   (0.25, 0.0, 0.0),
+                   (0.5, 0.0, 0.0),
+                   (0.75, 0.2, 0.2),
+                   (0.95, 0.8, 0.8),
+                   (1.0, 1.0, 1.0)),
+
+         'green': ((0.0, 1.0, 1.0),
+                   (0.01, 0.0, 0.0),
+                   (0.25, 0.2, 0.2),
+                   (0.5, 0.7, 0.7),
+                   (0.75, 0.7, 0.7),
+                   (0.95, 0.8, 0.8),
+                   (1.0, 0.8, 0.8)),
+
+         'blue':  ((0.0, 1.0, 1.0),
+                   (0.01, 0.4, 0.4),
+                   (0.25, 0.7, 0.7),
+                   (0.5, 0.7, 0.7),
+                   (0.75, 0.2, 0.2),
+                   (0.95, 0.0, 0.0),
+                   (1.0, 0.0, 0.0))
+        }
+         
+         
 
 if (detailFactor <= 0): detailFactor = 1 ## Though I cannot imagine someone wants negative detail ^^' 
 
@@ -51,6 +104,7 @@ for i in range(nrColumns):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         columnData = np.loadtxt("ISMolD_outputdata/nodes/time"+str(max_timestep)+"/column"+str(i)+".txt") ## nodeID, totalHeight, bedrockHeight, gravel, sand
+        
     for j in range(len(columnData)):
         for l in range(detailFactor):
             xmodifier = detailFactor*i+l
@@ -60,17 +114,16 @@ for i in range(nrColumns):
                     heatmapData[ymodifier+math.ceil(detailFactor*columnData[j,2]),xmodifier] = columnData[j,3]
                 elif(int(columnData.size/4) == 1): 
                     heatmapData[k-detailFactor*lowerBound+math.ceil(detailFactor*columnData[2]),xmodifier] = columnData[3]
-            
+
 fig, ax = plt.subplots()
-im = ax.imshow(heatmapData, vmin=0, vmax=1, aspect="equal", extent=[0,nrColumns,upperBound,lowerBound]) ## , extent=[80,120,32,upperBound]
+im = ax.imshow(heatmapData, vmin=0, vmax=1, aspect="equal", extent=[0,nrColumns,upperBound,lowerBound], cmap=LinearSegmentedColormap('CustomColorSet', mycdict)) ## , extent=[80,120,32,upperBound]
 fig.colorbar(im).set_label("Gravel fraction")
 ax.set_title("Sediment content per node")
 ax.invert_yaxis()
+ax.set_xlabel('Distance form source [km]')
+ax.set_ylabel('Height [m]')
 
-#if (saveImage):
-    ##anim.save('sedimentContentInNodes.gif', dpi=200, writer='imagemagick')
-    #os.system("xdg-open sedimentContentInNodes.gif")
-    
+
 print("Done", end="\r")
 if (showAnimation):
     print("Showing figure...    ")

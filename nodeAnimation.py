@@ -4,20 +4,47 @@ import warnings     ## Used to filter numpy warnings when opening empty text/dat
 import numpy as np  
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation 
+from matplotlib.colors import LinearSegmentedColormap
 from os import listdir
 
 saveImage = False
 showAnimation = False
 
 saveImage = True
-#showAnimation = True
+#showAnimation = True  ## Can be slow if the data pool is too large
 
 
 
 detailFactor = 20 ## Mesh size for the plot. Higher detailFactor creates a smoother bedrock slope. Example: if detailFactor = 10, each mesh cell is divided into 10x10 subcells
 animationInterval = 80 ## Time interval between frames in ms
 
+## Custom color scheme:
+mycdict = {'red':  ((0.0, 1.0, 1.0),
+                   (0.01, 0.0, 0.0),
+                   (0.25, 0.0, 0.0),
+                   (0.5, 0.0, 0.0),
+                   (0.75, 0.2, 0.2),
+                   (0.95, 0.8, 0.8),
+                   (1.0, 1.0, 1.0)),
 
+         'green': ((0.0, 1.0, 1.0),
+                   (0.01, 0.0, 0.0),
+                   (0.25, 0.2, 0.2),
+                   (0.5, 0.7, 0.7),
+                   (0.75, 0.7, 0.7),
+                   (0.95, 0.8, 0.8),
+                   (1.0, 0.8, 0.8)),
+
+         'blue':  ((0.0, 1.0, 1.0),
+                   (0.01, 0.4, 0.4),
+                   (0.25, 0.7, 0.7),
+                   (0.5, 0.7, 0.7),
+                   (0.75, 0.2, 0.2),
+                   (0.95, 0.0, 0.0),
+                   (1.0, 0.0, 0.0))
+        }
+         
+         
 if (detailFactor <= 0): detailFactor = 1 ## Though I cannot imagine someone wants negative detail ^^' 
 
 if (not os.path.isdir("ISMolD_outputdata/nodes/time0")):
@@ -66,12 +93,14 @@ for i in range(nrColumns):
                 heatmapData[detailFactor*lowerBound+math.ceil(columnData[2]),i] = columnData[3]
             
 fig, ax = plt.subplots()
-im = ax.imshow(heatmapData, vmin=0, vmax=1, aspect="equal", extent=[0,nrColumns,upperBound,lowerBound]) ## , extent=[80,120,32,upperBound]
+im = ax.imshow(heatmapData, vmin=0, vmax=1, aspect="equal", extent=[0,nrColumns,upperBound,lowerBound], cmap=LinearSegmentedColormap('CustomColorSet', mycdict))
 fig.colorbar(im).set_label("Gravel fraction")
 ax.set_title("Sediment content per node")
 ax.invert_yaxis()
+plt.tight_layout(rect=[0,0,0.85,1])
 
 def update(t):
+    ax.set_title("Sediment content per node. Time: "+str(t)+"kyr")
     if (t == (max_timestep-1)):
         print("Saving animation ...                                                        ", end="\r")
     else:
