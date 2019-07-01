@@ -16,7 +16,7 @@ saveImage = True
 
 
 detailFactor = 20 ## Mesh size for the plot. Higher detailFactor creates a smoother bedrock slope. Example: if detailFactor = 10, each mesh cell is divided into 10x10 subcells
-animationInterval = 80 ## Time interval between frames in ms
+animationInterval = 110 ## Time interval between frames in ms
 
 ## Custom color scheme:
 mycdict = {'red':  ((0.0, 1.0, 1.0),
@@ -100,7 +100,7 @@ ax.invert_yaxis()
 plt.tight_layout(rect=[0,0,0.85,1])
 
 def update(t):
-    ax.set_title("Sediment content per node. Time: "+str(t)+"kyr")
+    ax.set_title("Sediment content per node. Time: "+str(t*3)+"kyr")
     if (t == (max_timestep-1)):
         print("Saving animation ...                                                        ", end="\r")
     else:

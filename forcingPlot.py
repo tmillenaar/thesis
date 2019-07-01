@@ -61,4 +61,7 @@ ax11.legend(loc='center left', bbox_to_anchor=(1.15, 0.1))
 #ax22.legend(loc='center left', bbox_to_anchor=(1.3, 0.2))
 ax33.legend(loc='center left', bbox_to_anchor=(1.15, 2.3))
 plt.tight_layout(rect=[0,0,0.80,1])
+
+plt.savefig('forcingPlot.png')
+
 plt.show()

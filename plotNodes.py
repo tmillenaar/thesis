@@ -7,39 +7,13 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.colors import LinearSegmentedColormap
 from os import listdir
 
-saveImage = False
-showAnimation = False
 
-#saveImage = True
 showAnimation = True
-
 
 detailFactor = 20 ## Mesh size for the plot. Higher detailFactor creates a smoother bedrock slope. Example: if detailFactor = 10, each mesh cell is divided into 10x10 subcells
 
 
-## Set custom scale:
-## blue-white-red
-#mycdict = {'red':  ((0.0, 1.0, 1.0),
-                   #(0.01, 0.0, 0.0),
-                   #(0.25, 0.0, 0.0),
-                   #(0.5, 0.8, 1.0),
-                   #(0.75, 1.0, 1.0),
-                   #(1.0, 0.4, 1.0)),
-
-         #'green': ((0.0, 1.0, 1.0),
-                   #(0.01, 0.0, 0.0),
-                   #(0.25, 0.0, 0.0),
-                   #(0.5, 0.9, 0.9),
-                   #(0.75, 0.0, 0.0),
-                   #(1.0, 0.0, 0.0)),
-
-         #'blue':  ((0.0, 1.0, 1.0),
-                   #(0.01, 0.4, 0.4),
-                   #(0.25, 1.0, 1.0),
-                   #(0.5, 1.0, 0.8),
-                   #(0.75, 0.0, 0.0),
-                   #(1.0, 0.0, 0.0))
-        #}
+## Set custom color scale:
         
 ## blue-green-yellow
 mycdict = {'red':  ((0.0, 1.0, 1.0),
@@ -103,7 +77,7 @@ print("Preparing the image...                          ", end="\r") ## These spa
 for i in range(nrColumns):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        columnData = np.loadtxt("ISMolD_outputdata/nodes/time"+str(max_timestep)+"/column"+str(i)+".txt") ## nodeID, totalHeight, bedrockHeight, gravel, sand
+        columnData = np.loadtxt("ISMolD_outputdata/nodes/time"+str(max_timestep)+"/column"+str(i)+".txt") ## nodeID, totalHeight, bedrockHeight, gravel, sand, depositTime
         
     for j in range(len(columnData)):
         for l in range(detailFactor):
@@ -123,6 +97,7 @@ ax.invert_yaxis()
 ax.set_xlabel('Distance form source [km]')
 ax.set_ylabel('Height [m]')
 
+plt.savefig('nodesPlot.png')
 
 print("Done", end="\r")
 if (showAnimation):

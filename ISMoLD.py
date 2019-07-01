@@ -21,7 +21,6 @@ animateNodes = False
 spikeTest = False
 pbdtrace = False
 testSedTransport = False
-writeTopNode = False
 
 
 ##Uncomment if not desired:
@@ -37,14 +36,12 @@ plotNodes = True
 #pbdtrace = True
 #testSedTransport = True
 
-#writeTopNode = True  ## Top node is partially filled and can be left out of the output data. Activate when most accurate output is desired, deactivate if a pretty node plot is desired.
-
 
 yr2sec = 60*60*24*365.25      #nr of seconds in a year
 
 dx= 1e3                      # lateral grid spacing (m)
 imax= 100                     # number of nodes
-tmax= 100000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+tmax= 300000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
 dtout = tmax/100              # nr of years between write output
 dtout_progress = 10*yr2sec    # nr of years between progress bar update
 nrOfGrainSizes = 2
@@ -71,11 +68,11 @@ def setBoudnaryCondtitionValues(t, tmax, nrOfGrainSizes):
     #q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [(tmax/4), 50000*yr2sec], [2.0e-6, -0.0e-6] , [2.0e-6, 0.2e-6], 0)
     #q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [(tmax/4), 50000*yr2sec], [1.0e-6, -0.0e-6] , [1.0e-6, 0.2e-6], 0)
     
-    #q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/6), 4.0e-7 , 8.0e-7, 0)
-    #q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/6), 4.0e-7 , 8.0e-7, 0)
+    q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 4.0e-7 , 6.0e-7, 0)
+    q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 4.0e-7 , 4.5e-7, 0)
     
-    k[0] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/3), 1.5*3.2e-4, 1.7*3.2e-4, 0)
-    k[1] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/3), 2*3.2e-4 , 2.7*3.2e-4, 0)
+    k[0] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 1.5*3.2e-4, 1.7*3.2e-4, 0)
+    k[1] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 2*3.2e-4 , 2.7*3.2e-4, 0)
     
     #k[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [20000*yr2sec, 60000*yr2sec], [1*3.2e-4, 0.5*3.2e-4] , [1*3.2e-4, 1*3.2e-4], 0)
     #k[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [20000*yr2sec, 60000*yr2sec], [2*3.2e-4, 1*3.2e-4] , [2*3.2e-4, 2*3.2e-4], 0)
@@ -358,8 +355,10 @@ while (t < tmax):
             #time.append(t)
         
         ## Update the nodes to suite newHeight and newSedContent:
-        columns[i] = setNodes(i, k, newHeight[i], columns[i], columns[i]["newSedContent"], dt, dx, dy, transportDensity)  
-        
+        columns[i] = setNodes(i, k, newHeight[i], columns[i], columns[i]["newSedContent"], dt, dx, dy, transportDensity, t)  
+        for j in range(len(columns[i]["nodes"])):
+            if (columns[i]["nodes"][j]["depositionTimeInYears"] > 1e8): print("Error, depositionTimeInYears too large:", depositionTimeInYears)
+
     ## End column loop (i)
     
     ## Overwrite old the topography with the new profile:
@@ -371,18 +370,16 @@ while (t < tmax):
     if (t >= tout):
         
         makeTimeNodeDirectory(nodeOutputTimestep)
-        
+            
         for i in range(len(x)-1): ## -1 for the last column is always empty (by design). Therefore there is no need to create a file for it.
             f = open("ISMolD_outputdata/nodes/time"+str(nodeOutputTimestep)+"/column"+str(i)+".txt", "w")
-            if (enableSubsidence): 
-                jrange = len(columns[i]["nodes"])-1 ## -r for the most upper node is not properly filled. This node should be included when doing calculations on the data but may be removed for better visualization
-            else:
-              jrange = len(columns[i]["nodes"])
+            jrange = len(columns[i]["nodes"])
             for j in range(jrange): 
                 writeline = str(j)+" "+ str(columns[i]["totalHeight"])
                 writeline += " "+str(columns[i]["bedrockHeight"])
                 for p in range(nrOfGrainSizes):
                     writeline += " "+str(columns[i]["nodes"][j]["nodeSedContent"][p])
+                writeline += " "+ str(columns[i]["nodes"][j]["depositionTimeInYears"]) 
                 writeline += "\n"
                 f.write(writeline)
             f.close()
@@ -502,10 +499,7 @@ print("")
 print("Node volume error:", str(totalNodeVolume+totalOutput-totalInput)+"m^3")
 print("Node volume error in %:", str(100*(totalNodeVolume+totalOutput-totalInput)/totalInput)+"%")
 print("")
-print("totalDepositVolume-totalNodeVolume:", Decimal(totalDepositVolume), Decimal(totalNodeVolume), totalDepositVolume-totalNodeVolume)
-print(Decimal(totalDepositVolume))
-print(Decimal(totalNodeVolume))
-print("")
+
 
 if (plotForcing):
     print("Plotting Forcing...")

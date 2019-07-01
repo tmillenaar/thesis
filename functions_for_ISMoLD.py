@@ -3,7 +3,7 @@ import os
 from decimal import Decimal
 
 trace = False
-#trace = True ## Keep track in the terminal wether there was deposition, erosion or both
+trace = True ## Keep track in the terminal wether there was deposition, erosion or both
     
 def makeDirectories():
     if (not os.path.isdir("ISMolD_outputdata")):
@@ -61,12 +61,8 @@ def setPeriodicForcingValues(t, nrOfGrainSizes, periods, amplitudes, averages, m
         if (minval!="NULL"): value = max(minval, value)
     return value
         
-def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
-    
-    #if (i==5): 
-        #trace = False
-    #else:
-        #trace = False
+def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0, t):
+    yr2sec = 60*60*24*365.25      #nr of seconds in a year
     
     nrOfGrainSizes = len(newSedContent)
     
@@ -96,7 +92,7 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
     ## Deposition ##
     ##------------##
     elif ( (newHeight - column["oldHeight"]) > 0 and all( (newSedContent[q]-column["oldSedContent"][q])>=0 for q in range(nrOfGrainSizes)) ): 
-        if (trace): print("ONLY DEPOSITION", i)
+        #if (trace): print("ONLY DEPOSITION", i)
         
         flowFractions = list(range(nrOfGrainSizes))
         
@@ -136,7 +132,7 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
                 printColumn(column, i, newHeight, newSedContent)
                 exit()
                     
-            ## Note: newNodeSedContent must be set before newNodeDensity, for the variable depositDensity is altered after being used in newNodeDensity and must be used unaltered in newNodeSedContent
+            ## Note: newNodeSedContent must be set before newNodeDensity, for the variable depositDensity is altered in setting newNodeDensity and must be used unaltered when setting newNodeSedContent
             ## Set new nodeSedContent:
             if (current_node_density + depositDensity > rho0): ## Cross a node boundary
                 remainingDensity = rho0-current_node_density
@@ -154,10 +150,10 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
                             except:
                                 column["nodes"].update({j:{"nodeSedContent":{p: newNodeSedContent }}})
                     if (newNodeSedContent < 0):
-                        print("newNodeSedContent < 0:", i, p, newNodeSedContent, current_nodeSedContent[p], remainingHeight, flowFractions[p], current_node_density)
+                        print("Error, newNodeSedContent < 0:", i, p, newNodeSedContent, current_nodeSedContent[p], remainingHeight, flowFractions[p], current_node_density)
                         exit()
+                column["nodes"][j].update({"depositionTimeInYears":t/yr2sec})
             else: ## Change stays within one node:
-                newNodeDensity = current_node_density + depositDensity
                 for p in range(nrOfGrainSizes):
                     newNodeSedContent = current_nodeSedContent[p] + depositDensity/rho0 * flowFractions[p]
                     try:
@@ -171,8 +167,10 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
                             except:
                                 column["nodes"].update({j:{"nodeSedContent":{p: newNodeSedContent }}})
                     if (newNodeSedContent < 0):
-                        print(newNodeSedContent)
+                        print("Error, newNodeSedContent < 0:", i, p, newNodeSedContent, current_nodeSedContent[p], remainingHeight, flowFractions[p], current_node_density)
                         exit()
+                if(sum(current_nodeSedContent) == 0):
+                    column["nodes"][j].update({"depositionTimeInYears":t/yr2sec})
             ## Set new node density:
             if (current_node_density + depositDensity > rho0):
                 newNodeDensity = rho0
@@ -439,9 +437,9 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
                         column["nodes"][maxNode+1].update({"density":depositionContent[p]*rho0})
                     except:
                         column["nodes"].update({maxNode+1:{"density":depositionContent[p]*rho0}})
+                column["nodes"][maxNode+1].update({"depositionTimeInYears":t/yr2sec})
                     
             else: ## Change stays within one node:
-                #print("Change within 1 layer!")
                 newNodeSedContent = current_nodeSedContent[p] + depositionContent[p]
                 try:
                     column["nodes"][maxNode]["nodeSedContent"][p] = newNodeSedContent
@@ -457,7 +455,11 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0):
                     print("Error 3, node density too large:")
                     printColumn(column, i, newHeight, newSedContent)
                     exit()
-    
+                if (sum(current_nodeSedContent) == 0 or current_node_density == 0):
+                    print("Error, this is where it goes wrong")
+                    exit()
+                    
+        printColumn(column, i, newHeight, newSedContent)
         maxNode = len(column["nodes"]) - 1 ## Start maxNode before p loop for if the first iteration made a new node, it may not directly become the new maxNode for it would leave the "old" maxNode underfilled.
         if (maxNode == -1): maxNode = 0
         
