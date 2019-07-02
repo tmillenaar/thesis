@@ -61,7 +61,14 @@ def setPeriodicForcingValues(t, nrOfGrainSizes, periods, amplitudes, averages, m
         if (minval!="NULL"): value = max(minval, value)
     return value
         
-def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0, t):
+def compaction(column)
+    maxNode = len(column["nodes"]) - 1 ## -1 since node count starts at 0 and len() starts at 1
+    if (maxNode == -1): 
+        maxNode = 0
+    for j in range(maxNode+1):
+        pass
+    
+def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0, t, transportPorosity):
     yr2sec = 60*60*24*365.25      #nr of seconds in a year
     
     nrOfGrainSizes = len(newSedContent)
@@ -69,11 +76,11 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0, t):
     current_nodeSedContent = list(range(nrOfGrainSizes))
     sedContentChange = list(range(nrOfGrainSizes))
     
-    maxNode = len(column["nodes"]) - 1 ## -1 since node count starts at 0 and len() starts at 1
     totalSedContentBefore = list(range(nrOfGrainSizes))
     for p in range(nrOfGrainSizes):
         totalSedContentBefore[p] = 0
-        
+    
+    maxNode = len(column["nodes"]) - 1 ## -1 since node count starts at 0 and len() starts at 1 
     if (maxNode == -1): 
         maxNode = 0
     else:

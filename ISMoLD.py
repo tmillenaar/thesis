@@ -41,7 +41,7 @@ yr2sec = 60*60*24*365.25      #nr of seconds in a year
 
 dx= 1e3                      # lateral grid spacing (m)
 imax= 100                     # number of nodes
-tmax= 300000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+tmax= 50000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
 dtout = tmax/100              # nr of years between write output
 dtout_progress = 10*yr2sec    # nr of years between progress bar update
 nrOfGrainSizes = 2
@@ -50,7 +50,7 @@ nrOfGrainSizes = 2
 spikeLocation = 50             # Only relevant if spikeTest == True
 
 transportDensity = 2700
-#transportPorosity = 0.3
+transportPorosity = 0.3
 
 
 # Varying sediment input, diffusivity and subsidenceRate through time can be set here. Within this function you can define time dependent values at will, leaving you with a lot of freedom. Please be reasonable when making equations or setting values: not all values result in a good outcome of the model. Negative diffusivity for example will yield an error, as will negative input. The subsidenceRate can be negative, this results in uplift. For periods, amplitudes and averages in setPeriodicForcingValues(), either lists or tuples can be supplied, but be consistent. If lists are supplied, the various sinusoids will combine into a more complex one.
@@ -104,10 +104,6 @@ totalHeight= list(range(imax+1))
 newHeight= list(range(imax+1))
 x= list(range(imax+1))
 sedContentInActiveLayer = np.zeros(shape=(2,imax+1))
-totalSedcontenti0 = []
-totalSedcontenti1 = []
-activeLayeri0 = []
-activeLayeri1 = []
 time = []
 sedIncrease = np.zeros(shape=(2,imax+1))
 sedIn = np.zeros(shape=(2,imax+1))
@@ -291,17 +287,10 @@ while (t < tmax):
                     sedOut[p,i] += transport
                     sedIn[p,i-1] += transport
                         
-            
-    ## Loop through columns for a second time to fix the minima and maxima:
     for i in range(imax+1): 
         originalTotalSedOut = 0
-        fractionToLeft = list(range(nrOfGrainSizes))
-        fractionToRight = list(range(nrOfGrainSizes))
         for p in range(nrOfGrainSizes):            
-            fractionToLeft[p] = 0
-            fractionToRight[p] = 0
             originalTotalSedOut += sedOut[p,i]
-        for p in range(nrOfGrainSizes):
             totalSedIn += sedIn[p,i]
             totalSedOut += sedOut[p,i]
     
@@ -323,7 +312,7 @@ while (t < tmax):
         totalInput += q0[p]*dt
         InputPerGrainSize[p] += q0[p]*dt
         
-    ## Loop through columns for a second time to fix the minima and maxima:
+    ## Loop through columns for a second time to obtain newHeight and assign newSedContent 
     for i in range(imax): 
         ## The case i==0 is treated as a special case in this loop and i==imax+1 remains untouched, having it stay 0
         
@@ -332,7 +321,7 @@ while (t < tmax):
             
             columns[i]["newSedContent"][p] = columns[i]["newSedContent"][p] + sedIn[p,i]-sedOut[p,i]
             #print("HERE", p, sedIn[p,0], columns[0]["totalSedContent"][p], columns[0]["newSedContent"][p], sedIn[p,i], sedOut[p,i], sedContentInActiveLayer[p,i])
-            if (columns[i]["newSedContent"][p] < columns[i]["bedrockHeight"]-1e-14 and subsidenceRate > 0): 
+            if (columns[i]["newSedContent"][p] < columns[i]["bedrockHeight"]-1e-13 and subsidenceRate > 0): 
                 print("Attention: newSedContent["+str(p)+"] (column "+str(i)+") was set to "+str(columns[i]["bedrockHeight"])+", originally:", columns[i]["newSedContent"][p])
                 columns[i]["newSedContent"][p] = columns[i]["bedrockHeight"]
                 print(p, columns[i]["newSedContent"][p], sedIn[p,i], sedOut[p,i], "   Active layer:", sedContentInActiveLayer[p,i])
@@ -346,16 +335,11 @@ while (t < tmax):
             if (abs(sedIn[p,i]-sedOut[p,i]) < -1): ## Sediment input at the proximal end (i=0) is determined by the boundary condition and may be more then 1m in height
                 print("Error, active Layer < -1",i , dt, sedIn[p,i], -sedOut[p,i], sedIn[p,i]-sedOut[p,i], sedContentInActiveLayer[:,i])
                 exit()
-                
-        if (i==15): 
-            totalSedcontenti0.append(columns[15]["newSedContent"][0])
-            totalSedcontenti1.append(columns[15]["newSedContent"][1])
-            activeLayeri0.append(sedContentInActiveLayer[0,15])
-            activeLayeri1.append(sedContentInActiveLayer[1,15])
-            #time.append(t)
+        
+        ## Call compaction function
         
         ## Update the nodes to suite newHeight and newSedContent:
-        columns[i] = setNodes(i, k, newHeight[i], columns[i], columns[i]["newSedContent"], dt, dx, dy, transportDensity, t)  
+        columns[i] = setNodes(i, k, newHeight[i], columns[i], columns[i]["newSedContent"], dt, dx, dy, transportDensity, t, transportPorosity)  
         for j in range(len(columns[i]["nodes"])):
             if (columns[i]["nodes"][j]["depositionTimeInYears"] > 1e8): print("Error, depositionTimeInYears too large:", depositionTimeInYears)
 
