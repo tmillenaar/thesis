@@ -3,13 +3,14 @@
 
 import math
 import os
-import pdb ## pdb.set_trace()
 import matplotlib.pyplot as plt
 import numpy as np
 from os import listdir
 from decimal import Decimal
 
 from functions_for_ISMoLD import *
+
+yr2sec = 60*60*24*365.25      #nr of seconds in a year
 
 makeDirectories()
 
@@ -19,11 +20,16 @@ plotForcing = False
 plotNodes = False
 animateNodes = False
 spikeTest = False
-pbdtrace = False
 testSedTransport = False
 
 
-##Uncomment if not desired:
+
+
+## ## ## ## ## ## ## ## ##
+##   Modifiable part:   ##
+## ## ## ## ## ## ## ## ##
+
+## Uncomment if not desired:
 enableSubsidence = True
 
 plotForcing = True
@@ -31,26 +37,16 @@ plotForcing = True
 plotNodes = True
 #animateNodes = True
 
-
 #spikeTest = True
-#pbdtrace = True
 #testSedTransport = True
 
-
-yr2sec = 60*60*24*365.25      #nr of seconds in a year
-
-dx= 1e3                      # lateral grid spacing (m)
+dx= 1e3                      # width of each node/column (m)
 imax= 100                     # number of nodes
 tmax= 50000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
 dtout = tmax/100              # nr of years between write output
 dtout_progress = 10*yr2sec    # nr of years between progress bar update
-nrOfGrainSizes = 2
-
 
 spikeLocation = 50             # Only relevant if spikeTest == True
-
-transportDensity = 2700
-transportPorosity = 0.3
 
 
 # Varying sediment input, diffusivity and subsidenceRate through time can be set here. Within this function you can define time dependent values at will, leaving you with a lot of freedom. Please be reasonable when making equations or setting values: not all values result in a good outcome of the model. Negative diffusivity for example will yield an error, as will negative input. The subsidenceRate can be negative, this results in uplift. For periods, amplitudes and averages in setPeriodicForcingValues(), either lists or tuples can be supplied, but be consistent. If lists are supplied, the various sinusoids will combine into a more complex one.
@@ -92,6 +88,11 @@ def setBoudnaryCondtitionValues(t, tmax, nrOfGrainSizes):
 
 
 
+
+
+transportDensity = 2700         ## Density of newly deposited material. This variable was added with the foresight of the addition of compaction. Since compaction is not in the model, transportDensity can practically be any positive value and serves only as a measure of how well filled the nodes are. The model will crash if the variable is removed or unassigned.
+
+nrOfGrainSizes = 2 ## While this number is not hard-coded, the model is not tested for other amounts of grain sizes and the plotting of the data is tuned to two grain sizes. It is therefore not to be modified unless it is ones goal to modify the code to allow for this.
 
 
 ## Initialize:
@@ -336,12 +337,8 @@ while (t < tmax):
                 print("Error, active Layer < -1",i , dt, sedIn[p,i], -sedOut[p,i], sedIn[p,i]-sedOut[p,i], sedContentInActiveLayer[:,i])
                 exit()
         
-        ## Call compaction function
-        
         ## Update the nodes to suite newHeight and newSedContent:
-        columns[i] = setNodes(i, k, newHeight[i], columns[i], columns[i]["newSedContent"], dt, dx, dy, transportDensity, t, transportPorosity)  
-        for j in range(len(columns[i]["nodes"])):
-            if (columns[i]["nodes"][j]["depositionTimeInYears"] > 1e8): print("Error, depositionTimeInYears too large:", depositionTimeInYears)
+        columns[i] = setNodes(i, k, newHeight[i], columns[i], columns[i]["newSedContent"], dt, dx, dy, transportDensity, t)  
 
     ## End column loop (i)
     
@@ -445,15 +442,6 @@ for i in range(imax+1):
 totalGrainSizeFraction_sum = sum(totalGrainSizeFraction)
 for p in range(nrOfGrainSizes):
     totalGrainSizeFraction[p] = totalGrainSizeFraction[p]/totalGrainSizeFraction_sum 
-
-if (pbdtrace):
-    pdb.set_trace()
-
-    
-#printColumn(columns[2], 2, newHeight[2], columns[2]["newSedContent"])
-#for i in range(imax):
-    #printColumn(columns[i], i, newHeight[i], columns[i]["newSedContent"])
-    #print("")
 
 print("totalInput:", str(totalInput)+"m^3")
 print("InputPerGrainSize:", str(InputPerGrainSize)+"m^3")

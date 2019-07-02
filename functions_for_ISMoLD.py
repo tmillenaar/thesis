@@ -3,7 +3,7 @@ import os
 from decimal import Decimal
 
 trace = False
-trace = True ## Keep track in the terminal wether there was deposition, erosion or both
+#trace = True ## Keep track in the terminal wether there was deposition, erosion or both
     
 def makeDirectories():
     if (not os.path.isdir("ISMolD_outputdata")):
@@ -61,14 +61,7 @@ def setPeriodicForcingValues(t, nrOfGrainSizes, periods, amplitudes, averages, m
         if (minval!="NULL"): value = max(minval, value)
     return value
         
-def compaction(column)
-    maxNode = len(column["nodes"]) - 1 ## -1 since node count starts at 0 and len() starts at 1
-    if (maxNode == -1): 
-        maxNode = 0
-    for j in range(maxNode+1):
-        pass
-    
-def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0, t, transportPorosity):
+def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0, t):
     yr2sec = 60*60*24*365.25      #nr of seconds in a year
     
     nrOfGrainSizes = len(newSedContent)
@@ -466,7 +459,6 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0, t, transp
                     print("Error, this is where it goes wrong")
                     exit()
                     
-        printColumn(column, i, newHeight, newSedContent)
         maxNode = len(column["nodes"]) - 1 ## Start maxNode before p loop for if the first iteration made a new node, it may not directly become the new maxNode for it would leave the "old" maxNode underfilled.
         if (maxNode == -1): maxNode = 0
         
