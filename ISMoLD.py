@@ -42,7 +42,7 @@ plotNodes = True
 
 dx= 1e3                      # width of each node/column (m)
 imax= 100                     # number of nodes
-tmax= 50000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+tmax= 10000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
 dtout = tmax/100              # nr of years between write output
 dtout_progress = 10*yr2sec    # nr of years between progress bar update
 
@@ -70,11 +70,15 @@ def setBoudnaryCondtitionValues(t, tmax, nrOfGrainSizes):
     k[0] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 1.5*3.2e-4, 1.7*3.2e-4, 0)
     k[1] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 2*3.2e-4 , 2.7*3.2e-4, 0)
     
+    if (t>0.5*tmax):
+        q0[0] = 0
+        q0[1] = 0
+    
     #k[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [20000*yr2sec, 60000*yr2sec], [1*3.2e-4, 0.5*3.2e-4] , [1*3.2e-4, 1*3.2e-4], 0)
     #k[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [20000*yr2sec, 60000*yr2sec], [2*3.2e-4, 1*3.2e-4] , [2*3.2e-4, 2*3.2e-4], 0)
     
-    #subsidenceRate = setPeriodicForcingValues(t, nrOfGrainSizes, 70000*yr2sec, 2e-5, 3e-7)
-    subsidenceRate = 2e-6
+    subsidenceRate = setPeriodicForcingValues(t, nrOfGrainSizes, tmax, 2e-5, 3e-7)
+    #subsidenceRate = 2e-6
     #k[0]= 4*3.2e-4                # Gravel diffusivity (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
     #k[1]= 5*3.2e-4                # Sand diffusivity (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
     return q0, k, subsidenceRate
@@ -181,22 +185,19 @@ if (spikeTest):
 ## ## ## ## ## ## ## ##
 t= 0
 while (t < tmax):
-    
     q0, k, subsidenceRate = setBoudnaryCondtitionValues(t, tmax, nrOfGrainSizes)
     
-    #if(t>0.4*tmax): 
-        #for p in range(nrOfGrainSizes):
-            #q0[p] = 0.e-7
+    if (sum(k) == 0):
+        print("Error, there is no sediment transport at all this timestep. This is not allowed for dt approaches infinity if sum(k)=0. time of error:", t/yr2sec, "yr")
+        exit()
     
-    #if(t<0.15*tmax): 
-        #q0[0] = 1.e-6
-        #q0[1] = 0
-    #elif(t<0.3*tmax ): 
-        #q0[0] = 0
-        #q0[1] = 1.e-6
-    #elif (t>0.3*tmax):
-        #for p in range(nrOfGrainSizes):
-            #q0[p] = 0.e-7
+    for i in range(nrOfGrainSizes):
+        if ( k[i] < 0):
+            print("Error, negative diffusion. t=", str(t/yr2sec)+"yr", "k["+str(i)+"]="+str(k[i]))
+            exit()
+        if ( q0[i] < 0):
+            print("Error, negative input. t=", str(t/yr2sec)+"yr", "q0["+str(i)+"]="+str(q0[i]))
+            exit()
     
     if (spikeTest == True):
         for p in range(nrOfGrainSizes):
@@ -389,9 +390,9 @@ while (t < tmax):
         writeline += " "+str(totalOutput)
         for p in range(nrOfGrainSizes):
             writeline += " "+str(OutputPerGrainSize[p])
-        writeline += " "+str(sum(sedOut[:,imax-1]))
+        writeline += " "+str(sum(sedOut[:,imax-1])/dt)
         for p in range(nrOfGrainSizes):
-            writeline += " "+str(sedOut[p,imax-1])
+            writeline += " "+str(sedOut[p,imax-1]/dt)
         writeline += " "+str(sum(k))
         for p in range(nrOfGrainSizes):
             writeline += " "+str(k[p])  
@@ -472,6 +473,7 @@ print("Node volume error:", str(totalNodeVolume+totalOutput-totalInput)+"m^3")
 print("Node volume error in %:", str(100*(totalNodeVolume+totalOutput-totalInput)/totalInput)+"%")
 print("")
 
+printColumn(columns[0], 0, newHeight[0], columns[0]["newSedContent"])
 
 if (plotForcing):
     print("Plotting Forcing...")

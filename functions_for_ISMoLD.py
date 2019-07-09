@@ -15,9 +15,29 @@ def makeDirectories():
     if (not os.path.isdir("ISMolD_outputdata/nodes")):
         os.mkdir("ISMolD_outputdata/nodes")
         
-def makeTimeNodeDirectory(timestep) :
+def makeTimeNodeDirectory(timestep):
     if (not os.path.isdir("ISMolD_outputdata/nodes/time"+str(timestep))):
         os.mkdir("ISMolD_outputdata/nodes/time"+str(timestep))
+
+#def loadData():
+    #max_timestep = len(os.listdir("ISMolD_outputdata/relief"))-1 #-1 since file starts at 'time0'
+    #nrColumns = len(listdir("ISMolD_outputdata/nodes/time"+str(max_timestep)))-1 #-1 since file starts at 'output0', add -1 for amy subdirectory
+    
+    #columns = {}
+    #for i in range(imax+1):
+        #x[i]=i
+        #totalHeight[i] = 0
+        #columns[i]= {"totalHeight":0,
+                    #"bedrockHeight": 0,
+                    #"totalSedContent":list(range(nrOfGrainSizes)),
+                    #"nodes":{},
+                    #"newSedContent": list(range(nrOfGrainSizes)),
+                    #"totalSedHeight": list(range(nrOfGrainSizes)),
+                    #}
+    
+    #reliefData = np.loadtxt("ISMolD_outputdata/relief/topography"+str(n)+".txt")
+    #nodeData = np.loadtxt("ISMolD_outputdata/nodes/time"+str(nodeOutputTimestep)+"/column"+str(i)+".txt")
+    #return columns
         
 def printColumn(column, i, newHeight, newSedContent):
     

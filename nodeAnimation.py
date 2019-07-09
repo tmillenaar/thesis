@@ -55,6 +55,17 @@ print("Determining the extent of the data...", end="\r")
 upperBound = 0
 lowerBound = 0
 max_timestep = len(os.listdir("ISMolD_outputdata/relief"))-1 #-1 since file starts at 'time0'
+
+## Find latest deposition time:
+## Note: in the model, time 0 at the start of the model. When making logs, time=0 is considered to be the present. Therefore, the final timestep of the model reperesents present time.
+nrColumns = len(os.listdir("ISMolD_outputdata/nodes/time"+str(max_timestep)))-1 #-1 since file starts at 'output0', add -1 for any subdirectory
+
+totalElapsedTime = 0
+for i in range(nrColumns):
+    data = np.loadtxt("ISMolD_outputdata/nodes/time"+str(max_timestep)+"/column"+str(i)+".txt") 
+    totalElapsedTime = max( max(data[:,5]), totalElapsedTime)
+
+## Loop through timesteps:
 for t in range(max_timestep):
     nrColumns = len(listdir("ISMolD_outputdata/nodes/time"+str(t)))-1 #-1 since file starts at 'output0', add -1 for amy subdirectory
 
@@ -100,7 +111,7 @@ ax.invert_yaxis()
 plt.tight_layout(rect=[0,0,0.85,1])
 
 def update(t):
-    ax.set_title("Sediment content per node. Time: "+str(t*3)+"kyr")
+    ax.set_title("Sediment content per node. Time: "+str(int(t*totalElapsedTime/(1000*max_timestep)))+"kyr")
     if (t == (max_timestep-1)):
         print("Saving animation ...                                                        ", end="\r")
     else:
@@ -110,7 +121,7 @@ def update(t):
     
     # Update the line and the axes (with a new xlabel). Return a tuple of
     # "artists" that have to be redrawn for this frame.
-    nrColumns = len(listdir("ISMolD_outputdata/nodes/time"+str(t)))-1 #-1 since file starts at 'output0', add -1 for amy subdirectory
+    nrColumns = len(listdir("ISMolD_outputdata/nodes/time"+str(t)))-1 #-1 since file starts at 'output0', add -1 for any subdirectory
 
     for i in range (nrColumns):
         with warnings.catch_warnings():

@@ -1,10 +1,14 @@
 ISMolD_outputdata/
 outputdata/
 __pycache__/
+otherRuns/
 Show/
+allNodes/
 sedimentContentInNodes.gif
 Show.zip
 "totalSedContent animation.gif"
 "NodeSedContent with cycles example".gif
 InandOutput.png
 test.gif
+forcingPlot.png
+nodesPlot.png
