@@ -39,8 +39,8 @@ ax1.set_ylabel('Total [m^2]')
 ax11.set_ylabel('Current [m^2/s]')
 ax2.set_ylabel('Total [m^2]')
 ax22.set_ylabel('Current [m^2/s]')
-ax3.set_ylabel('Total [m^2]')
-ax33.set_ylabel('Current [m^2/s]')
+ax3.set_ylabel('Diffusivity [m^2/s]')
+ax33.set_ylabel('Subsidence rate [m/s]')
 ax3.set_xlabel('Time [s]')
 
 ## Use scientific notation for axes:

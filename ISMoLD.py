@@ -473,8 +473,6 @@ print("Node volume error:", str(totalNodeVolume+totalOutput-totalInput)+"m^3")
 print("Node volume error in %:", str(100*(totalNodeVolume+totalOutput-totalInput)/totalInput)+"%")
 print("")
 
-printColumn(columns[0], 0, newHeight[0], columns[0]["newSedContent"])
-
 if (plotForcing):
     print("Plotting Forcing...")
     os.system("python3 forcingPlot.py")
