@@ -42,7 +42,7 @@ plotNodes = True
 
 dx= 1e3                      # width of each node/column (m)
 imax= 100                     # number of nodes
-tmax= 10000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+tmax= 100000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
 dtout = tmax/100              # nr of years between write output
 dtout_progress = 10*yr2sec    # nr of years between progress bar update
 
