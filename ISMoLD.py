@@ -5,6 +5,7 @@ import math
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+from time import time as currentTime
 from os import listdir
 from decimal import Decimal
 
@@ -32,9 +33,9 @@ testSedTransport = False
 ## Uncomment if not desired:
 enableSubsidence = True
 
-plotForcing = True
+#plotForcing = True
 #animateHeight = True 
-plotNodes = True
+#plotNodes = True
 #animateNodes = True
 
 #spikeTest = True
@@ -42,7 +43,7 @@ plotNodes = True
 
 dx= 1e3                      # width of each node/column (m)
 imax= 100                     # number of nodes
-tmax= 100000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+tmax= 50000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
 dtout = tmax/100              # nr of years between write output
 dtout_progress = 10*yr2sec    # nr of years between progress bar update
 
@@ -92,7 +93,7 @@ def setBoudnaryCondtitionValues(t, tmax, nrOfGrainSizes):
 
 
 
-
+startTime = currentTime()
 
 transportDensity = 2700         ## Density of newly deposited material. This variable was added with the foresight of the addition of compaction. Since compaction is not in the model, transportDensity can practically be any positive value and serves only as a measure of how well filled the nodes are. The model will crash if the variable is removed or unassigned.
 
@@ -443,6 +444,8 @@ for i in range(imax+1):
 totalGrainSizeFraction_sum = sum(totalGrainSizeFraction)
 for p in range(nrOfGrainSizes):
     totalGrainSizeFraction[p] = totalGrainSizeFraction[p]/totalGrainSizeFraction_sum 
+    
+elapsedTime = currentTime()-startTime
 
 print("totalInput:", str(totalInput)+"m^3")
 print("InputPerGrainSize:", str(InputPerGrainSize)+"m^3")
@@ -472,7 +475,8 @@ print("")
 print("Node volume error:", str(totalNodeVolume+totalOutput-totalInput)+"m^3")
 print("Node volume error in %:", str(100*(totalNodeVolume+totalOutput-totalInput)/totalInput)+"%")
 print("")
-
+printElapsedTime(elapsedTime)
+print("")
 if (plotForcing):
     print("Plotting Forcing...")
     os.system("python3 forcingPlot.py")

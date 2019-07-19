@@ -19,6 +19,47 @@ def makeTimeNodeDirectory(timestep):
     if (not os.path.isdir("ISMolD_outputdata/nodes/time"+str(timestep))):
         os.mkdir("ISMolD_outputdata/nodes/time"+str(timestep))
 
+## Make time in seconds readable:
+def printElapsedTime(elapsedTime):
+    if (elapsedTime < 60):
+        if (elapsedTime < 1):
+            print("This run took less then a second. You might want to take a look at the input, mate.")
+        else:
+            print("This run took "+str(math.ceil(elapsedTime))+" seconds")
+    elif (elapsedTime < 60*60):
+        timeInMinutes = math.floor(elapsedTime/60)
+        if (timeInMinutes == 1):
+            minuteText = " minute"
+        else:
+            minuteText = " minutes"
+            
+        if (math.ceil(elapsedTime-timeInMinutes*60) < 1):
+            secondText = " second"
+        else:
+            secondText = " seconds"
+        print("This run took "+str(timeInMinutes)+ minuteText +" and "+str(math.ceil(elapsedTime-timeInMinutes*60))+ secondText)
+    else:
+        timeInMinutes = math.floor(elapsedTime/60)
+        hours = math.floor(timeInMinutes/60)
+        
+        if (hours == 1):
+            hourText = " hour"
+        else:
+            hourText = " hours"
+        minutes = int(elapsedTime/60 - hours*60)
+        
+        if (minutes == 1):
+            minuteText = " minute"
+        else:
+            minuteText = " minutes"
+        seconds = int(elapsedTime - hours*60*60 - minutes*60)
+        
+        if (seconds == 1):
+            secondText = " second"
+        else:
+            secondText = " seconds"
+        print("This run took "+str(hours)+ hourText+ ", " +str(minutes)+ minuteText +" and "+str(seconds)+ secondText)
+
 #def loadData():
     #max_timestep = len(os.listdir("ISMolD_outputdata/relief"))-1 #-1 since file starts at 'time0'
     #nrColumns = len(listdir("ISMolD_outputdata/nodes/time"+str(max_timestep)))-1 #-1 since file starts at 'output0', add -1 for amy subdirectory
