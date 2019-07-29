@@ -47,7 +47,7 @@ ax22.get_yaxis().set_label_coords(1.15,0.5)
 ax3.set_ylabel('Diffusivity [m^2/s]').set_fontsize(14)
 ax3.set_ylim(ymin=0)
 ax3.get_yaxis().set_label_coords(-0.1,0.5)
-ax33.set_ylabel('Subsidence rate [m/s]').set_fontsize(14)
+ax33.set_ylabel('Subsidence rate [m/yr]').set_fontsize(14)
 ax33.get_yaxis().set_label_coords(1.15,0.5)
 ax3.set_xlabel('Time [yr]').set_fontsize(14)
 
