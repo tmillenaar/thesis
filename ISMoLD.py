@@ -185,7 +185,7 @@ if (spikeTest):
 ##  Main time loop:  ##
 ## ## ## ## ## ## ## ##
 t= 0
-while (t < tmax):
+while (t <= tmax):
     q0, k, subsidenceRate = setBoudnaryCondtitionValues(t, tmax, nrOfGrainSizes)
     
     if (sum(k) == 0):

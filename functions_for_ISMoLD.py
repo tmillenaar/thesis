@@ -62,11 +62,12 @@ def printElapsedTime(elapsedTime):
 
 #def loadData():
     #max_timestep = len(os.listdir("ISMolD_outputdata/relief"))-1 #-1 since file starts at 'time0'
-    #nrColumns = len(listdir("ISMolD_outputdata/nodes/time"+str(max_timestep)))-1 #-1 since file starts at 'output0', add -1 for amy subdirectory
+    #nrColumns = len(listdir("ISMolD_outputdata/nodes/time"+str(max_timestep)))-1 #-1 since file starts at 'output0', add -1 for any subdirectory
     
     #columns = {}
     #for i in range(imax+1):
         #x[i]=i
+        ### initialize:
         #totalHeight[i] = 0
         #columns[i]= {"totalHeight":0,
                     #"bedrockHeight": 0,
@@ -99,7 +100,7 @@ def printColumn(column, i, newHeight, newSedContent):
     for j in range(len(column["nodes"])):
         print(j, column["nodes"][j])
     print("Summed:  ", Decimal(newTotalHeight), Decimal(newTotalSedContent[0]), Decimal(newTotalSedContent[1]))
-    print("Expected:", Decimal(newHeight), Decimal(newSedContent[0]), Decimal(newSedContent[1]))
+    print("Expected:", Decimal(newHeight-column["bedrockHeight"]), Decimal(newSedContent[0]), Decimal(newSedContent[1]))
     print("")
 
 
@@ -580,20 +581,20 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0, t):
                 newTotalSedContent[p] += column["nodes"][j]["nodeSedContent"][p]
         newTotalHeight = columnDensity/rho0
         
-        #if (i==5): print("Height Mismatch column "+str(i)+":", newHeight - newTotalHeight)
-        if (newHeight-column["bedrockHeight"] - newTotalHeight < -1e-10 or newHeight-column["bedrockHeight"] - newTotalHeight > 1e-10):
-            print("")
-            print("totalHeight Mismatch:", newHeight - newTotalHeight, i, sedContentChange)
-            printColumn(column, i, newHeight, newSedContent)
-            exit()
-        elif(newSedContent[0] - newTotalSedContent[0] < -1e-10 or newSedContent[0] - newTotalSedContent[0] > 1e-10):
-            print("")
-            print("sedContent 0 Mismatch:", newSedContent[0] - newTotalSedContent[0], sedContentChange, i)
-            exit()
-        elif(newSedContent[1] - newTotalSedContent[1] < -1e-10 or newSedContent[1] - newTotalSedContent[1] > 1e-10):
-            print("")
-            print("sedContent 1 Mismatch:", newSedContent[1] - newTotalSedContent[1], sedContentChange, i)
-            exit()
+        if (trace):
+            if (newHeight-column["bedrockHeight"] - newTotalHeight < -1e-10 or newHeight-column["bedrockHeight"] - newTotalHeight > 1e-10):
+                print("")
+                print("totalHeight Mismatch:", newHeight-column["bedrockHeight"] - newTotalHeight, i, "sedContentChange:", sedContentChange)
+                printColumn(column, i, newHeight, newSedContent)
+                exit()
+            elif(newSedContent[0] - newTotalSedContent[0] < -1e-10 or newSedContent[0] - newTotalSedContent[0] > 1e-10):
+                print("")
+                print("sedContent 0 Mismatch:", newSedContent[0] - newTotalSedContent[0], sedContentChange, i)
+                exit()
+            elif(newSedContent[1] - newTotalSedContent[1] < -1e-10 or newSedContent[1] - newTotalSedContent[1] > 1e-10):
+                print("")
+                print("sedContent 1 Mismatch:", newSedContent[1] - newTotalSedContent[1], sedContentChange, i)
+                exit()
         
     maxNode = len(column["nodes"]) - 1 
     if (maxNode == -1): maxNode = 0
