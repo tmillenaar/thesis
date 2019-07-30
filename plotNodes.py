@@ -58,13 +58,17 @@ for i in range (nrColumns):
     with warnings.catch_warnings(): 
         warnings.simplefilter("ignore") ## Ignores the warnings when numpy opens an empty file (most columns are empty/unfilled at the start of the run)
         data = np.loadtxt("ISMolD_outputdata/nodes/time"+str(max_timestep)+"/column"+str(i)+".txt")
-    upperBound = max(upperBound, int(data.size/5))
+    try:
+        upperBound = max(upperBound, max(data[:,1]))
+    except:
+        pass
     try:
         lowerBound = min(lowerBound, min(data[:,2]))
     except:
         pass
 
-lowerBound = math.floor(lowerBound)        
+upperBound = math.ceil(upperBound+0.1*(upperBound-lowerBound))
+lowerBound = math.floor(lowerBound-0.1*(upperBound-lowerBound))
 
 heatmapData = np.zeros(shape=(detailFactor*upperBound-detailFactor*lowerBound, detailFactor*nrColumns))
 
@@ -89,14 +93,16 @@ for i in range(nrColumns):
                 elif(int(columnData.size/4) == 1): 
                     heatmapData[k-detailFactor*lowerBound+math.ceil(detailFactor*columnData[2]),xmodifier] = columnData[3]
 
+
 fig, ax = plt.subplots()
-im = ax.imshow(heatmapData, vmin=0, vmax=1, aspect="equal", extent=[0,nrColumns,upperBound,lowerBound], cmap=LinearSegmentedColormap('CustomColorSet', mycdict)) ## , extent=[80,120,32,upperBound]
+im = ax.imshow(heatmapData, vmin=0, vmax=1, aspect="auto", extent=[0,nrColumns,upperBound,lowerBound], cmap=LinearSegmentedColormap('CustomColorSet', mycdict)) ## , extent=[80,120,32,upperBound]
 fig.colorbar(im).set_label("Gravel fraction")
 ax.set_title("Sediment content per node")
 ax.invert_yaxis()
 ax.set_xlabel('Distance form source [km]')
 ax.set_ylabel('Height [m]')
 
+#ax.set_aspect(aspect=0.5)
 plt.savefig('nodesPlot.png')
 
 print("Done", end="\r")

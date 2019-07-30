@@ -55,17 +55,6 @@ print("Determining the extent of the data...", end="\r")
 upperBound = 0
 lowerBound = 0
 max_timestep = len(os.listdir("ISMolD_outputdata/relief"))-1 #-1 since file starts at 'time0'
-
-## Find latest deposition time:
-## Note: in the model, time 0 at the start of the model. When making logs, time=0 is considered to be the present. Therefore, the final timestep of the model reperesents present time.
-nrColumns = len(os.listdir("ISMolD_outputdata/nodes/time"+str(max_timestep)))-1 #-1 since file starts at 'output0', add -1 for any subdirectory
-
-totalElapsedTime = 0
-for i in range(nrColumns):
-    data = np.loadtxt("ISMolD_outputdata/nodes/time"+str(max_timestep)+"/column"+str(i)+".txt") 
-    totalElapsedTime = max( max(data[:,5]), totalElapsedTime)
-
-## Loop through timesteps:
 for t in range(max_timestep):
     nrColumns = len(listdir("ISMolD_outputdata/nodes/time"+str(t)))-1 #-1 since file starts at 'output0', add -1 for amy subdirectory
 
@@ -73,12 +62,17 @@ for t in range(max_timestep):
         with warnings.catch_warnings(): 
             warnings.simplefilter("ignore") ## Ignores the warnings when numpy opens an empty file (most columns are empty/unfilled at the start of the run)
             data = np.loadtxt("ISMolD_outputdata/nodes/time"+str(t)+"/column"+str(i)+".txt")
-        upperBound = max(upperBound, int(data.size/5))
+        try:
+            upperBound = max(upperBound, max(data[:,1]))
+        except:
+            pass
         try:
             lowerBound = min(lowerBound, min(data[:,2]))
         except:
             pass
-lowerBound = math.floor(lowerBound)        
+        
+upperBound = math.ceil(upperBound+0.1*(upperBound-lowerBound))
+lowerBound = math.floor(lowerBound-0.1*(upperBound-lowerBound))     
 
 heatmapData = np.zeros(shape=(detailFactor*upperBound-detailFactor*lowerBound, detailFactor*nrColumns))
 #for i in range(heatmapData.shape[0]):
@@ -104,14 +98,14 @@ for i in range(nrColumns):
                 heatmapData[detailFactor*lowerBound+math.ceil(columnData[2]),i] = columnData[3]
             
 fig, ax = plt.subplots()
-im = ax.imshow(heatmapData, vmin=0, vmax=1, aspect="equal", extent=[0,nrColumns,upperBound,lowerBound], cmap=LinearSegmentedColormap('CustomColorSet', mycdict))
+im = ax.imshow(heatmapData, vmin=0, vmax=1, aspect="auto", extent=[0,nrColumns,upperBound,lowerBound], cmap=LinearSegmentedColormap('CustomColorSet', mycdict))
 fig.colorbar(im).set_label("Gravel fraction")
 ax.set_title("Sediment content per node")
 ax.invert_yaxis()
 plt.tight_layout(rect=[0,0,0.85,1])
 
 def update(t):
-    ax.set_title("Sediment content per node. Time: "+str(int(t*totalElapsedTime/(1000*max_timestep)))+"kyr")
+    ax.set_title("Sediment content per node. Time: "+str(t*3)+"kyr")
     if (t == (max_timestep-1)):
         print("Saving animation ...                                                        ", end="\r")
     else:
@@ -121,7 +115,7 @@ def update(t):
     
     # Update the line and the axes (with a new xlabel). Return a tuple of
     # "artists" that have to be redrawn for this frame.
-    nrColumns = len(listdir("ISMolD_outputdata/nodes/time"+str(t)))-1 #-1 since file starts at 'output0', add -1 for any subdirectory
+    nrColumns = len(listdir("ISMolD_outputdata/nodes/time"+str(t)))-1 #-1 since file starts at 'output0', add -1 for amy subdirectory
 
     for i in range (nrColumns):
         with warnings.catch_warnings():
