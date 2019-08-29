@@ -119,7 +119,6 @@ dy = 1         # vertical grid spacing (m)  Important: MUST BE 1(as integer) for
 
 tout = 0.          # threshold to write next output in years (increased every write action by dtout)
 tout_progress = 0.          # threshold to update progress bar
-tprogress = 0.
 
 totalInput= 0
 totalOutput= 0
@@ -291,9 +290,9 @@ while (t <= tmax):
                     sedIn[p,i-1] += transport
                         
     for i in range(imax+1): 
-        originalTotalSedOut = 0
+        #originalTotalSedOut = 0
         for p in range(nrOfGrainSizes):            
-            originalTotalSedOut += sedOut[p,i]
+            #originalTotalSedOut += sedOut[p,i]
             totalSedIn += sedIn[p,i]
             totalSedOut += sedOut[p,i]
     
