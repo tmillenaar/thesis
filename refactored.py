@@ -26,8 +26,10 @@ q0 = np.zeros(shape=(2))
 q0[0]= 4*1.e-7                    # Gravel input (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
 q0[1]= 3*1.e-7                    # Sand input (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
     
-k[0]= 0.1*3.2e-4                    # Gravel diffusivity (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
-k[1]= 0.2*3.2e-4                    # Sand diffusivity (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
+k[0]= 1*3.2e-4                    # Gravel diffusivity (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
+k[1]= 2*3.2e-4                    # Sand diffusivity (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
+
+subsidenceRate = 2.e-6
 
 x               = np.zeros(shape=(imax+1))
 totalHeight     = np.zeros(shape=(imax+1))
@@ -71,7 +73,7 @@ def setTimestep():
     return dt
 
 @njit
-def FTCS(dt, dx, q0, k, totalSedContent, totalInput, totalOutput, InputPerGrainSize, OutputPerGrainSize, totalHeight):
+def FTCS(dt, dx, q0, k, totalSedContent, totalInput, totalOutput, InputPerGrainSize, OutputPerGrainSize, totalHeight, bedrockHeight, subsidenceRate):
     """ Calculate the new topography profile and keep track of the total displacement in- and output of sediment in the meantime. """
     sedIn = np.zeros(shape=(2,imax+1))
     sedOut = np.zeros(shape=(2,imax+1))
@@ -133,7 +135,18 @@ def FTCS(dt, dx, q0, k, totalSedContent, totalInput, totalOutput, InputPerGrainS
             #for f in range(nrOfGrainSizes):            
                 #totalSedIn += sedIn[f,i]
                 #totalSedOut += sedOut[f,i]
-    return totalSedContent, InputPerGrainSize, OutputPerGrainSize, totalInput, totalOutput, totalHeight, sedOut#, totalSedIn, totalSedOut
+    subsidence (totalHeight, bedrockHeight, imax, subsidenceRate, nrOfGrainSizes)
+    return totalSedContent, InputPerGrainSize, OutputPerGrainSize, totalInput, totalOutput, totalHeight, bedrockHeight, sedOut#, totalSedIn, totalSedOut
+
+@njit
+def subsidence (totalHeight, bedrockHeight, imax, subsidenceRate, nrOfGrainSizes):
+    for i in range(imax+1):
+        bedrockHeight[i] -= subsidenceRate*(imax-i)
+        #columns[i]["oldHeight"] = max( columns[i]["oldHeight"]-subsidenceRate*(imax-i) , bedrockHeight[i])
+        totalHeight[i] = max( totalHeight[i]-subsidenceRate*(imax-i) , bedrockHeight[i]) 
+  
+    return totalHeight, bedrockHeight
+
 
 def writeOutput(nrOfGrainSizes, totalHeight, totalSedContent, totalInput, InputPerGrainSize, OutputPerGrainSize, q0, sedOut, tout, dtout):
     
@@ -158,11 +171,10 @@ def writeOutput(nrOfGrainSizes, totalHeight, totalSedContent, totalInput, InputP
     file = open("ISMolD_outputdata/relief/topography"+str(n)+".txt", "w")
     for i in range(len(x)):
         writeline = str(x[i])+" "+str(totalHeight[i])
-        #writeline += " "+str(columns[i]["bedrockHeight"])
-        writeline += " "+str(0)
+        writeline += " "+str(bedrockHeight[i])
         for f in range(nrOfGrainSizes):
-            #writeline += " "+str(columns[i]["totalSedContent"][p] + columns[i]["bedrockHeight"]) ## Note that bedrockHeight is generally negative
-            writeline += " "+str(totalSedContent[f][i])
+            writeline += " "+str(totalSedContent[f][i] + bedrockHeight[i]) ## Note that bedrockHeight is generally negative
+            #writeline += " "+str(totalSedContent[f][i])
         writeline += "\n"
         file.write(writeline)
     file.close()
@@ -233,7 +245,7 @@ if __name__=="__main__":
         dt = setTimestep()
         
         #Call FTCS to obtain the new height profile
-        totalSedContent, InputPerGrainSize, OutputPerGrainSize, totalInput, totalOutput, totalHeight, sedOut = FTCS(dt, dx, q0, k, totalSedContent, totalInput, totalOutput, InputPerGrainSize, OutputPerGrainSize, totalHeight)
+        totalSedContent, InputPerGrainSize, OutputPerGrainSize, totalInput, totalOutput, totalHeight, bedrockHeight, sedOut = FTCS(dt, dx, q0, k, totalSedContent, totalInput, totalOutput, InputPerGrainSize, OutputPerGrainSize, totalHeight, bedrockHeight, subsidenceRate)
         
         if (t >= tout):
             tout = writeOutput(nrOfGrainSizes, totalHeight, totalSedContent, totalInput, InputPerGrainSize, OutputPerGrainSize, q0, sedOut, tout, dtout)
