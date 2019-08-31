@@ -10,7 +10,7 @@ yr2sec = 60*60*24*365.25          #nr of seconds in a year
 
 dx              = 1e3             # width of each node/column (m)
 imax            = 100             # number of nodes
-tmax            = 500000*yr2sec    # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+tmax            = 50000*yr2sec    # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
 dtout           = tmax/100        # nr of years between write output
 dtout_progress  = 10*yr2sec       # nr of years between progress bar update
 
@@ -29,14 +29,14 @@ q0[1]= 3*1.e-7                    # Sand input (m2/s)  Attention: will be overwr
 k[0]= 1*3.2e-4                    # Gravel diffusivity (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
 k[1]= 2*3.2e-4                    # Sand diffusivity (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
 
-subsidenceRate = 2.e-6
+subsidenceRate = 0#2.e-6
 
 x               = np.zeros(shape=(imax+1))
 totalHeight     = np.zeros(shape=(imax+1))
 bedrockHeight   = np.zeros(shape=(imax+1))
 totalSedContent = np.zeros(shape=(2, imax+1))
 totalSedHeight  = np.zeros(shape=(2, imax+1))
-nodes         = np.zeros(shape=(nrOfGrainSizes+1,5,10)) # For the first index: 0=density, 1=first grain size, 2=second grain size, etc..  The second index indicates the row and the third indicates the column
+nodes           = np.zeros(shape=(nrOfGrainSizes+2,imax+1,1)) # For the first index: 0=density, 1=first grain size, 2=second grain size(, etc..) and the last one is depositionTimeInYears. The second index indicates the row and the third indicates the column.
 
 totalInput= 0
 totalOutput= 0
@@ -45,7 +45,8 @@ OutputPerGrainSize = np.zeros(shape=(2))
 
 dy = 1                            # vertical grid spacing (m)  Important: MUST BE 1(as integer) for code to work (in this version)!
 tout = 0.                         # threshold to write next output in years (increased every write action by dtout)
-tout_progress = 0.                # threshold to update progress bar
+tout_progress = 2*dtout_progress    # threshold to update progress bar, will be increased whenever it is reached
+outputTimestep = 0
 
 for i in range(imax+1):
     x[i]=i
@@ -148,28 +149,31 @@ def subsidence (totalHeight, bedrockHeight, imax, subsidenceRate, nrOfGrainSizes
     return totalHeight, bedrockHeight
 
 
-def writeOutput(nrOfGrainSizes, totalHeight, totalSedContent, totalInput, InputPerGrainSize, OutputPerGrainSize, q0, sedOut, tout, dtout):
+def writeOutput(imax, nrOfGrainSizes, totalHeight, totalSedContent, totalInput, InputPerGrainSize, OutputPerGrainSize, q0, sedOut, tout, dtout, outputTimestep):
     
-    #makeTimeNodeDirectory(nodeOutputTimestep)
+    #Make data directory for the current timestep
+    if (not os.path.isdir("ISMolD_outputdata/nodes/time"+str(outputTimestep))):
+        os.mkdir("ISMolD_outputdata/nodes/time"+str(outputTimestep))
         
-    #for i in range(len(x)-1): ## -1 for the last column is always empty (by design). Therefore there is no need to create a file for it.
-        #file = open("ISMolD_outputdata/nodes/time"+str(nodeOutputTimestep)+"/column"+str(i)+".txt", "w")
-        #jrange = len(columns[i]["nodes"])
-        #for j in range(jrange): 
-            #writeline = str(j)+" "+ str(columns[i]["totalHeight"])
-            #writeline += " "+str(columns[i]["bedrockHeight"])
-            #for p in range(nrOfGrainSizes):
-                #writeline += " "+str(columns[i]["nodes"][j]["nodeSedContent"][p])
-            #writeline += " "+ str(columns[i]["nodes"][j]["depositionTimeInYears"]) 
-            #writeline += "\n"
-            #file.write(writeline)
+    for i in range(imax): 
+        with open("ISMolD_outputdata/nodes/time"+str(outputTimestep)+"/column"+str(i)+".txt", "w") as file:
+        #file = open("ISMolD_outputdata/nodes/time"+str(outputTimestep)+"/column"+str(i)+".txt", "w")
+            jrange = math.floor(totalHeight[i]) #Set jrange to be the node at the surface
+            for j in range(jrange): 
+                writeline = str(j)+" "+ str(totalHeight[i])
+                writeline += " "+str(bedrockHeight[i])
+                for f in range(nrOfGrainSizes):
+                    writeline += " "+str(nodes[f+1,i,j])
+                writeline += " "+ str(nodes[len(nodes)-1,i,j])
+                writeline += "\n"
+                file.write(writeline)
         #file.close()
     
-    #nodeOutputTimestep += 1
+    outputTimestep += 1
     
     n= int(tout/dtout)
     file = open("ISMolD_outputdata/relief/topography"+str(n)+".txt", "w")
-    for i in range(len(x)):
+    for i in range(imax):
         writeline = str(x[i])+" "+str(totalHeight[i])
         writeline += " "+str(bedrockHeight[i])
         for f in range(nrOfGrainSizes):
@@ -208,7 +212,126 @@ def writeOutput(nrOfGrainSizes, totalHeight, totalSedContent, totalInput, InputP
 
 
 
+@njit
+def setNodes(i, k, nodes, totalHeight, bedrockHeight, nrOfGrainSizes, totalSedContent, dt, dx, dy, t):
+    yr2sec = 60*60*24*365.25      #nr of seconds in a year
+    
+    trace = False
+    
+    # Infer the height of the column before alteration from how filled the nodes are
+    oldHeight = 0
+    oldSedContent = np.zeros(shape=(nrOfGrainSizes))
+    for j in range(len(nodes[0,i,:])):
+        oldHeight += nodes[0,i,j]
+        for f in range(nrOfGrainSizes):
+            oldSedContent[f] += nodes[f+1,i,j]
+            
+            
+    onlyDeposition = True
+    for f in range(nrOfGrainSizes):
+        if ( totalSedContent[f]-oldSedContent[f] < 0 ):
+            onlyDeposition = False
+    
+    
+    if ( (totalHeight - oldHeight) == 0): ## Nothing happens
+        pass
+    ##------------##
+    ## Deposition ##
+    ##------------##
+    elif ( (totalHeight-bedrockHeight - oldHeight) > 0 and onlyDeposition == True ): 
+        if (trace): print("ONLY DEPOSITION", i)
+        
+        yetToBeDeposited = ((totalHeight-bedrockHeight) - oldHeight)  ## Height in m to be added to existing column
+        flowFractions = np.zeros(shape=(nrOfGrainSizes))
+        for f in range (nrOfGrainSizes):    
+            if (yetToBeDeposited != 0):
+                flowFractions[f] = (totalSedContent[f]-oldSedContent[f])/yetToBeDeposited
+            else:
+                flowFractions[f] = 0
+        #Increase array size of nodes if nessecary 
+        if ( (totalHeight-bedrockHeight) >= len(nodes[0,i])):
+            newArrayShape = np.zeros(shape=(len(nodes), len(nodes[0]), 1))# len(nodes[0,i]) + math.ceil(yetToBeDeposited)))
+            nodes = np.concatenate((nodes,newArrayShape), axis=2)
+        
+        currentNodeSedContent = np.zeros(shape=(nrOfGrainSizes))
+        j = math.floor(oldHeight) #Set j to be the node at the surface
+        while (yetToBeDeposited > 0):
+            currentNodeFill = nodes[0,i,j]
+            nodes[len(nodes)-1,i,j] = t/yr2sec
+            for f in range(nrOfGrainSizes):
+                currentNodeSedContent[f] = nodes[f+1,i,j]
+            if ((dy-currentNodeFill) <= yetToBeDeposited): #Remaining change exceeds at least one node
+                nodes[0,i,j] = dy
+                for f in range(nrOfGrainSizes):
+                    nodes[f+1,i,j] = (dy - currentNodeSedContent[f]) * flowFractions[f]
+                yetToBeDeposited -= (dy-currentNodeFill)
+                j += 1
+            else: #Remaining change stays within the node
+                nodes[0,i,j] = currentNodeFill + yetToBeDeposited
+                nodes[len(nodes)-1,i,j] = t/yr2sec
+                for f in range(nrOfGrainSizes):
+                    nodes[f+1,i,j] = currentNodeSedContent[f] + yetToBeDeposited * flowFractions[f]
+                yetToBeDeposited = 0
+            
+        
+    
+    ###---------##
+    ### Erosion ##
+    ###---------##
+    #elif ( (newHeight - column["oldHeight"]) < 0 and all( (newSedContent[q]-column["oldSedContent"][q])<=0 for q in range(nrOfGrainSizes)) ):  ## Erosion
+        #if (trace): print("ONLY EROSION", i)
+        
+    
+    ###-----------------------------##
+    ### Both Deposition and Erosion ##
+    ###-----------------------------##
+    #else: 
+        #if (trace): print("Both Deposition and Erosion", i)
+    return nodes
 
+## Make time in seconds readable:
+def printElapsedTime(elapsedTime):
+    if (elapsedTime < 60):
+        if (elapsedTime < 1):
+            print("This run took less then a second. You might want to take a look at the input, mate.")
+        else:
+            print("This run took "+str(math.ceil(elapsedTime))+" seconds")
+    elif (elapsedTime < 60*60):
+        timeInMinutes = math.floor(elapsedTime/60)
+        if (timeInMinutes == 1):
+            minuteText = " minute"
+        else:
+            minuteText = " minutes"
+            
+        if (math.ceil(elapsedTime-timeInMinutes*60) < 1):
+            secondText = " second"
+        else:
+            secondText = " seconds"
+        print("This run took "+str(timeInMinutes)+ minuteText +" and "+str(math.ceil(elapsedTime-timeInMinutes*60))+ secondText)
+    else:
+        timeInMinutes = math.floor(elapsedTime/60)
+        hours = math.floor(timeInMinutes/60)
+        
+        if (hours == 1):
+            hourText = " hour"
+        else:
+            hourText = " hours"
+        minutes = int(elapsedTime/60 - hours*60)
+        
+        if (minutes == 1):
+            minuteText = " minute"
+        else:
+            minuteText = " minutes"
+        seconds = int(elapsedTime - hours*60*60 - minutes*60)
+        
+        if (seconds == 1):
+            secondText = " second"
+        else:
+            secondText = " seconds"
+        print("This run took "+str(hours)+ hourText+ ", " +str(minutes)+ minuteText +" and "+str(seconds)+ secondText)
+        
+        
+        
 
 
 
@@ -216,6 +339,8 @@ def writeOutput(nrOfGrainSizes, totalHeight, totalSedContent, totalInput, InputP
 
 #def timeloop(tmax, yr2sec, nrOfGrainSizes, totalSedContent, k, q0, tout_progress):
 if __name__=="__main__":
+    
+    print("Initializing...")
     
     ## Remove old data files
     nr_topo_files = len(os.listdir("ISMolD_outputdata/relief")) #-1 since file starts at 'output0', add -1 for amy subdirectory
@@ -230,25 +355,28 @@ if __name__=="__main__":
     t= 0
     while (t <= tmax):
         
-        #if (sum(k) == 0):
-            #print("\n\nFatal Error, there is no sediment transport at all this timestep. \nThis is not allowed, for dt approaches infinity if sum(k)=0. \nTime of error:", t/yr2sec, "yr")
-            #exit()
+        if (sum(k) == 0):
+            print("\n\nFatal Error, there is no sediment transport at all this timestep. \nThis is not allowed, for dt approaches infinity if sum(k)=0. \nTime of error:", t/yr2sec, "yr")
+            exit()
         
-        #for i in range(nrOfGrainSizes):
-            #if ( k[i] < 0):
-                #print("Error, negative diffusion. t=", str(t/yr2sec)+"yr", "k["+str(i)+"]="+str(k[i]))
-                #exit()
-            #if ( q0[i] < 0):
-                #print("Error, negative input. t=", str(t/yr2sec)+"yr", "q0["+str(i)+"]="+str(q0[i]))
-                #exit()
+        for i in range(nrOfGrainSizes):
+            if ( k[i] < 0):
+                print("Error, negative diffusion. t=", str(t/yr2sec)+"yr", "k["+str(i)+"]="+str(k[i]))
+                exit()
+            if ( q0[i] < 0):
+                print("Error, negative input. t=", str(t/yr2sec)+"yr", "q0["+str(i)+"]="+str(q0[i]))
+                exit()
         
         dt = setTimestep()
         
         #Call FTCS to obtain the new height profile
         totalSedContent, InputPerGrainSize, OutputPerGrainSize, totalInput, totalOutput, totalHeight, bedrockHeight, sedOut = FTCS(dt, dx, q0, k, totalSedContent, totalInput, totalOutput, InputPerGrainSize, OutputPerGrainSize, totalHeight, bedrockHeight, subsidenceRate)
         
+        #Update the node array to match the new topography profile
+        for i in range(imax+1):
+            nodes = setNodes(i, k, nodes, totalHeight[i], bedrockHeight[i], nrOfGrainSizes, totalSedContent[:,i], dt, dx, dy, t)
         if (t >= tout):
-            tout = writeOutput(nrOfGrainSizes, totalHeight, totalSedContent, totalInput, InputPerGrainSize, OutputPerGrainSize, q0, sedOut, tout, dtout)
+            tout = writeOutput(imax, nrOfGrainSizes, totalHeight, totalSedContent, totalInput, InputPerGrainSize, OutputPerGrainSize, q0, sedOut, tout, dtout, outputTimestep)
             
         t += dt
         
@@ -256,15 +384,8 @@ if __name__=="__main__":
             print("      "+str( (math.ceil(100000*t/tmax))/1000 )+"%", end="\r") ##Track progress
             tout_progress += dtout_progress
     
-    
-#jit()(timeloop(tmax, yr2sec, nrOfGrainSizes, k, q0, tout_progress, dtout_progress))
-#timeloop(tmax, yr2sec, nrOfGrainSizes, totalSedContent, k, q0, tout_progress)
-    
-    
-    
-end = time()
-runTime = end-start
-print("This run took {} seconds".format(runTime))
+    printElapsedTime(time()-start)
+
     
     
     

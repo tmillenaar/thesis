@@ -154,7 +154,7 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0, t):
     ## Deposition ##
     ##------------##
     elif ( (newHeight - column["oldHeight"]) > 0 and all( (newSedContent[q]-column["oldSedContent"][q])>=0 for q in range(nrOfGrainSizes)) ): 
-        #if (trace): print("ONLY DEPOSITION", i)
+        if (trace): print("ONLY DEPOSITION", i)
         
         flowFractions = list(range(nrOfGrainSizes))
         
