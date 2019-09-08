@@ -60,7 +60,7 @@ for i in range(imax+1):
 
 @njit
 def setTimestep():
-    """ Calculating the macimum timestep (dt) as limited by the active layer and the FTCS scheme. """
+    """ Calculating the maximum timestep (dt) as limited by the active layer and the FTCS scheme. """
     dtFTCS = 0.9*(dx*dx)/(2.e0*((k[0]+k[1]))) ##FTCS
     maxHeightDiff = totalHeight[0]+(q0[0]+q0[1])*dtFTCS/dx-totalHeight[1] ## dtFTCS is used here as an estimation on the high side. It is better to estimate more sediment input resulting in a high slope then it is to estimate on the low side. A too low estimate of the sediment input can lead to an amount of sediment being removed somewhere that is more the the depth of the active layer. Higher estimates of q0 result in lowe dt and thus a slower run speed.
     for i in range(1,imax):
@@ -331,19 +331,45 @@ def printElapsedTime(elapsedTime):
         print("This run took "+str(hours)+ hourText+ ", " +str(minutes)+ minuteText +" and "+str(seconds)+ secondText)
         
         
+def makeDirectories():
+    if (not os.path.isdir("ISMolD_outputdata")):
+        os.mkdir("ISMolD_outputdata")
         
+    if (not os.path.isdir("ISMolD_outputdata/relief")):
+        os.mkdir("ISMolD_outputdata/relief")
+
+    if (not os.path.isdir("ISMolD_outputdata/nodes")):
+        os.mkdir("ISMolD_outputdata/nodes")        
 
 
 
+		
+def erodeNodes():
+    yetToBeEroded = oldSedContent - (totalSedContent-bedrockHeight)
+    j = math.floor(oldHeight)
+    while (yetToBeDeposited > 0):
+        currentNodeSedContent = nodes[f+1,i,j]
+        if (currentNodeSedContent < yetToBeEroded): ## Remaining change exceeds one node
+            nodes[f+1,i,j] = 0
+            nodes[0,i,j] -= currentNodeSedContent
+            yetToBeEroded -= currentNodeSedContent
+            j -= 1
+            if (j<0):
+                raise valueError('j cannot be <0', yetToBeEroded)
+            else:  ## Remaining change stays within one node
+                nodes[f+1,i,j] -= yetToBeEroded
+                nodes[0,i,j] -= yetToBeEroded
+                yetToBeEroded = 0
+		
 
 
 #def timeloop(tmax, yr2sec, nrOfGrainSizes, totalSedContent, k, q0, tout_progress):
 if __name__=="__main__":
     
     print("Initializing...")
-    
+    makeDirectories()
     ## Remove old data files
-    nr_topo_files = len(os.listdir("ISMolD_outputdata/relief")) #-1 since file starts at 'output0', add -1 for amy subdirectory
+    nr_topo_files = len(os.listdir("ISMolD_outputdata/relief")) #-1 since file starts at 'output0', add -1 for any subdirectory
     if (nr_topo_files > 1):
         os.system('rm ISMolD_outputdata/relief/topography*.txt')
         os.system('rm -r -f ISMolD_outputdata/nodes/*')
