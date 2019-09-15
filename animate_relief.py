@@ -58,5 +58,5 @@ if __name__ == '__main__':
     # animating over 10 frames, with an interval of 200ms between frames.
     anim = FuncAnimation(fig, update, frames=np.arange(0, nr_frames), interval=50)
     plt.legend(loc=1, borderaxespad=0.)
-    anim.save('test.gif', dpi=80, writer='imagemagick')
+    # anim.save('test.gif', dpi=80, writer='imagemagick')
     plt.show()
