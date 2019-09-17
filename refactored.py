@@ -10,7 +10,7 @@ yr2sec = 60*60*24*365.25          #nr of seconds in a year
 
 dx              = 1e3             # width of each node/column (m)
 imax            = 100             # number of nodes
-tmax            = 50000*yr2sec    # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+tmax            = 5000*yr2sec    # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
 dtout           = tmax/100        # nr of years between write output
 dtout_progress  = 10*yr2sec       # nr of years between progress bar update
 
@@ -83,8 +83,8 @@ def FTCS(dt, dx, q0, k, totalSedContent, totalInput, totalOutput, InputPerGrainS
     totalSedIn = 0
     totalSedOut = 0
     totalHeight[imax] = 0
-    
     for i in range(imax+1): 
+        # if i==1: print("before:", totalHeight[i])
         ## The case i==0 is treated as a special case in this loop and i==imax+1 remains untouched so it stays 0
         
         for f in range(nrOfGrainSizes):
@@ -102,11 +102,12 @@ def FTCS(dt, dx, q0, k, totalSedContent, totalInput, totalOutput, InputPerGrainS
                     totalSedIn -= q0[f]*dt/dx
                     sedOut[f,0] = 0
             else:
-                
                 if (totalHeight[i-1] > totalHeight[i]): ## Slope goes down to the right
+                    # print(i)
                     transport = ( (Dph*dt)/(dx*dx) )*( (totalHeight[i-1]) - ((totalHeight[i])) )
                     #transport = min(transport, sedContentInActiveLayer[f,i-1])
-                    transport = min(transport, totalSedContent[i][f-1])
+                    transport = min(transport, totalSedContent[i-1][f])
+                    # print("transport",transport, totalSedContent[i-1])
                     sedOut[f,i-1] += transport
                     sedIn[f,i] += transport
 
@@ -117,13 +118,14 @@ def FTCS(dt, dx, q0, k, totalSedContent, totalInput, totalOutput, InputPerGrainS
                     sedOut[f,i] += transport
                     sedIn[f,i-1] += transport
             
+        # if i==1: print(sedIn[:,1], sedOut[:,1])    
     for i in range(imax+1): 
         for f in range(nrOfGrainSizes):
             totalSedContent[i][f] = totalSedContent[i][f] + sedIn[f][i]-sedOut[f][i]
             totalHeight[i] += sedIn[f][i]-sedOut[f][i]
         if (totalHeight[i] < 0):
             totalHeight[i] = 0
-            
+        # if i==1: print("After:", totalHeight[i],"\n")
     totalHeight[imax] = 0
     for f in range(nrOfGrainSizes):
         totalSedContent[imax][f] = 0
@@ -136,6 +138,7 @@ def FTCS(dt, dx, q0, k, totalSedContent, totalInput, totalOutput, InputPerGrainS
             #for f in range(nrOfGrainSizes):            
                 #totalSedIn += sedIn[f,i]
                 #totalSedOut += sedOut[f,i]
+    
     subsidence (totalHeight, bedrockHeight, imax, subsidenceRate, nrOfGrainSizes)
     return totalSedContent, InputPerGrainSize, OutputPerGrainSize, totalInput, totalOutput, totalHeight, bedrockHeight, sedOut#, totalSedIn, totalSedOut
 
@@ -239,28 +242,28 @@ def checkNodes(nodes, dy):
                     prevNodeContent = nodes[0][i][j-1]    
                     
                 if ( nextNodeContent != 0. ): #prevNodeContent != 1. or
-                    print('Column {}, total fill:'.format(i),nodes[0][i])
+                    # print('Column {}, total fill:'.format(i),nodes[0][i])
                     nextNodeFractions = list(range(nrOfGrainSizes))
                     for f in range(nrOfGrainSizes):
-                        print('Column {}, f:{}:'.format(i,f),nodes[f][i])
+                        # print('Column {}, f:{}:'.format(i,f),nodes[f][i])
                         nextNodeFractions[f] = nodes[f+1][i][j+1] / nodes[0][i][j+1] 
-                    print('nextNodeFractions', nextNodeFractions)
+                    # print('nextNodeFractions', nextNodeFractions)
                     deficit = dy - nodes[0][i][j]
-                    print('deficit', deficit)
+                    # print('deficit', deficit)
                     for f in range(nrOfGrainSizes):
-                        print("Hit", deficit * nextNodeFractions[f])
-                        print('Now:', nodes[0][i][j], 'expected:', nodes[0][i][j] + deficit * nextNodeFractions[f])
+                        # print("Hit", deficit * nextNodeFractions[f])
+                        # print('Now:', nodes[0][i][j], 'expected:', nodes[0][i][j] + deficit * nextNodeFractions[f])
                         nodes[0][i][j] += deficit * nextNodeFractions[f]
-                        print('Got:', nodes[0][i][j])
+                        # print('Got:', nodes[0][i][j])
                         nodes[f+1][i][j] += deficit * nextNodeFractions[f]
                         nodes[f+1][i][j+1] -= deficit * nextNodeFractions[f]
-                        print('During: Column {}, total fill:'.format(i),nodes[0][i])
-                        print('During: Column {}, f:{}:'.format(i,f),nodes[f][i])
+                        # print('During: Column {}, total fill:'.format(i),nodes[0][i])
+                        # print('During: Column {}, f:{}:'.format(i,f),nodes[f][i])
                     # print(nextNodeContent, nodes[0][i][j],  prevNodeContent)
                     # raise ValueError('Column {} is not properly filled'.format(i))
-                    print('After: Column {}, total fill:'.format(i),nodes[0][i])
-                    for f in range(nrOfGrainSizes):
-                        print('After: Column {}, f:{}:'.format(i,f),nodes[f][i])
+                    # print('After: Column {}, total fill:'.format(i),nodes[0][i])
+                    # for f in range(nrOfGrainSizes):
+                        # print('After: Column {}, f:{}:'.format(i,f),nodes[f][i])
     return nodes
 def erodeNodes(oldSedContent, totalSedContent, bedrockHeight, oldHeight, nodes):
     yetToBeEroded = oldSedContent - (totalSedContent-bedrockHeight)
@@ -282,21 +285,24 @@ def erodeNodes(oldSedContent, totalSedContent, bedrockHeight, oldHeight, nodes):
 		
     
     
-def depositNodes(totalSedContent, bedrockHeight, oldSedContent, oldHeight, nodes, flowFraction, f, i, j, dy):
+def depositNodes(totalSedContent, bedrockHeight, currentNodeFill, oldSedContent, oldHeight, nodes, flowFraction, f, i, j, dy):
     yr2sec = 60*60*24*365.25          #nr of seconds in a year
-    yetToBeDeposited = (totalSedContent - bedrockHeight) - oldSedContent
+    yetToBeDeposited = (totalSedContent - oldSedContent) - bedrockHeight
+    # print(yetToBeDeposited)
     j = math.floor(oldHeight)
     while (yetToBeDeposited > 0):
+        # print('j:',j, yetToBeDeposited, currentNodeFill, dy, flowFraction, (dy-currentNodeFill)*flowFraction)
         # print(nodes[0][i])
-        # print(f,i,j, len(nodes[0][i]), totalHeight[i], oldHeight)
-        currentNodeSedContent = nodes[f+1,i,j]
-        currentNodeFill = nodes[0,i,j]
+        # print(f,i,j, len(nodes[0][i]), oldHeight, totalSedContent)
+        # currentNodeFill = nodes[0,i,j]currentNodeFill = nodes[0,i,j]
+        # print(dy-currentNodeFill, flowFraction, (dy-currentNodeFill)*flowFraction, yetToBeDeposited)
         nodes[len(nodes)-1,i,j] = t/yr2sec   #set time of deposition
-        if (dy*flowFraction-currentNodeFill < yetToBeDeposited): #Remaining change exceeds one node
+        if ((dy-currentNodeFill)*flowFraction < yetToBeDeposited): #Remaining change exceeds one node
             nodes[0,i,j] += (dy-currentNodeFill)*flowFraction
             nodes[f+1,i,j] += (dy-currentNodeFill)*flowFraction
             yetToBeDeposited -= (dy-currentNodeFill)*flowFraction
             j+=1
+            currentNodeFill = 0 #fill of next node
         else: #Remaining change stays in one node
             nodes[0,i,j] += yetToBeDeposited
             nodes[f+1,i,j] += yetToBeDeposited
@@ -309,7 +315,7 @@ def depositNodes(totalSedContent, bedrockHeight, oldSedContent, oldHeight, nodes
 def setNodes(i, k, nodes, totalHeight, bedrockHeight, nrOfGrainSizes, totalSedContent, dt, dx, dy, t):
     yr2sec = 60*60*24*365.25      #nr of seconds in a year
     
-    trace = True
+    trace = False
     
     # Infer the height of the column before alteration from how filled the nodes are
     oldHeight = 0
@@ -328,17 +334,17 @@ def setNodes(i, k, nodes, totalHeight, bedrockHeight, nrOfGrainSizes, totalSedCo
         if ( totalSedContent[f]-oldSedContent[f] > 0 ): #deposition occurs
             onlyErosion = False
         
-    #Increase array size of nodes if necessary 
-        #if (int(totalHeight-bedrockHeight) is not 0): print((totalHeight-bedrockHeight), len(nodes[0,i]))
-        if ( (totalHeight-bedrockHeight) >= len(nodes[0,i])):
-            deficite = math.ceil(totalHeight-bedrockHeight) - len(nodes[0,i])
-            #print('deficite', deficite, len(nodes[0,i]), math.ceil(totalHeight-bedrockHeight))
-            newArrayShape = np.zeros(shape=(len(nodes), len(nodes[0]), deficite))# len(nodes[0,i]) + math.ceil(yetToBeDeposited)))
-            #print(np.shape(nodes), np.shape(newArrayShape))
-            nodes = np.concatenate((nodes,newArrayShape), axis=2)
-            #print('After concatenation:', np.shape(nodes))
+    # # Increase array size of nodes if necessary 
+        # # if (int(totalHeight-bedrockHeight) is not 0): print((totalHeight-bedrockHeight), len(nodes[0,i]))
+        # if ( (totalHeight-bedrockHeight) >= len(nodes[0,i])):
+            # deficite = math.ceil(totalHeight-bedrockHeight) - len(nodes[0,i])
+            # # print('deficite', deficite, len(nodes[0,i]), math.ceil(totalHeight-bedrockHeight))
+            # newArrayShape = np.zeros(shape=(len(nodes), len(nodes[0]), deficite))# len(nodes[0,i]) + math.ceil(yetToBeDeposited)))
+            # # print(np.shape(nodes), np.shape(newArrayShape))
+            # nodes = np.concatenate((nodes,newArrayShape), axis=2)
+            # # print('After concatenation:', np.shape(nodes))
         
-        
+    # if ((totalHeight - oldHeight) != 0): print("check tussendoor:", totalSedContent)
     if ( (totalHeight - oldHeight) == 0): ## Nothing happens
         pass
     ##------------##
@@ -356,8 +362,15 @@ def setNodes(i, k, nodes, totalHeight, bedrockHeight, nrOfGrainSizes, totalSedCo
                 flowFractions[f] = sedContentChange[f]/sum(sedContentChange)
             else:
                 flowFractions[f] = 0
+                
+        # print("Before deposit nodes:")
+        # print(oldHeight, totalHeight, len(nodes[0][i]), nodes[1,i], nodes[2,i])
+        currentNodeFill = nodes[0,i,math.floor(oldHeight)]
         for f in range(nrOfGrainSizes):
-            nodes = depositNodes(totalSedContent[f], bedrockHeight, oldSedContent[f], oldHeight, nodes, flowFractions[f], f, i, j, dy)
+            nodes = depositNodes(totalSedContent[f], bedrockHeight, currentNodeFill, oldSedContent[f], oldHeight, nodes, flowFractions[f], f, i, j, dy)
+        # print("After deposit nodes:")
+        # print(oldHeight, totalHeight, len(nodes[0][i]), nodes[1,i], nodes[2,i])
+        
         # yetToBeDeposited = ((totalHeight-bedrockHeight) - oldHeight)  ## Height in m to be added to existing column
         # flowFractions = np.zeros(shape=(nrOfGrainSizes))
         # for f in range (nrOfGrainSizes):    
@@ -412,10 +425,11 @@ def setNodes(i, k, nodes, totalHeight, bedrockHeight, nrOfGrainSizes, totalSedCo
                 nodes = erodeNodes(oldSedContent[f], totalSedContent[f], bedrockHeight, oldHeight, nodes)
                 
         ## Make sure nodes are correctly filled
+        currentNodeFill = nodes[0][i][j]
         for f in range (nrOfGrainSizes):            
             if (sedContentChange[f] > 0):
                 flowFraction = 1.0 ## If nrOfGrainSizes > 2, this is no longer valid
-                nodes = depositNodes(totalSedContent[f], bedrockHeight, oldSedContent[f], oldHeight, nodes, flowFraction, f, i, j, dy)
+                nodes = depositNodes(totalSedContent[f], bedrockHeight, currentNodeFill, oldSedContent[f], oldHeight, nodes, flowFraction, f, i, j, dy)
         
     return nodes
 
@@ -506,15 +520,26 @@ if __name__=="__main__":
         #Call FTCS to obtain the new height profile
         totalSedContent, InputPerGrainSize, OutputPerGrainSize, totalInput, totalOutput, totalHeight, bedrockHeight, sedOut = FTCS(dt, dx, q0, k, totalSedContent, totalInput, totalOutput, InputPerGrainSize, OutputPerGrainSize, totalHeight, bedrockHeight, subsidenceRate)
         
+        #Increase array size of nodes if necessary 
+        #if (int(totalHeight-bedrockHeight) is not 0): print((totalHeight-bedrockHeight), len(nodes[0,i]))
+        if ( (max(totalHeight)-min(bedrockHeight)+1) >= len(nodes[0,i])): ## +1 is to allow some room for inefficient filling, which can occur during deposition but is corrected for in checkNodes()
+            deficite = math.ceil(max(totalHeight)-min(bedrockHeight)+1) - len(nodes[0,i])
+            #print('deficite', deficite, len(nodes[0,i]), math.ceil(totalHeight-bedrockHeight))
+            newArrayShape = np.zeros(shape=(len(nodes), len(nodes[0]), deficite))# len(nodes[0,i]) + math.ceil(yetToBeDeposited)))
+            #print(np.shape(nodes), np.shape(newArrayShape))
+            nodes = np.concatenate((nodes,newArrayShape), axis=2)
+            #print('After concatenation:', np.shape(nodes))
+    
+        
         #Update the node array to match the new topography profile
         for i in range(imax+1):
-            if (totalHeight[i] != 0):
-                print('Before nodeset:')
-                printNodes(i, nodes, totalHeight[i], totalSedContent[i])
+            # if (totalHeight[i] != 0):
+                # print('Before nodeset:')
+                # printNodes(i, nodes, totalHeight[i], totalSedContent[i])
             nodes = setNodes(i, k, nodes, totalHeight[i], bedrockHeight[i], nrOfGrainSizes, totalSedContent[i], dt, dx, dy, t)
-            if (totalHeight[i] != 0):
-                print('After nodeset:')
-                printNodes(i, nodes, totalHeight[i], totalSedContent[i])
+            # if (totalHeight[i] != 0):
+                # print('After nodeset:')
+                # printNodes(i, nodes, totalHeight[i], totalSedContent[i])
         
         nodes = checkNodes(nodes, dy)
         if (t >= tout):
@@ -526,9 +551,24 @@ if __name__=="__main__":
             print("      "+str( (math.ceil(100000*t/tmax))/1000 )+"%", end="\r") ##Track progress
             tout_progress += dtout_progress
     
+    for i in range(5):
+        printNodes(i, nodes, totalHeight[i], totalSedContent[i])
     printElapsedTime(time()-start)
+    
+    
+    
+    
+    
+## todo: check erosion, some nodes have negative sedcontent
+## implement mass loss check FTCS
+## implement mass loss check setNodes and children
 
-    
-    
-    
-    
+
+
+
+
+
+
+
+
+
