@@ -215,15 +215,23 @@ def writeOutput(imax, nrOfGrainSizes, totalHeight, totalSedContent, totalInput, 
 
 
 def printNodes(i, nodes, totalHeight, totalSedContent):
-    nrOfGrainSizes = len(totalSedContent)
+    
     if (totalHeight != 0):
         summedGrainSizes = 0
-        for f in range(nrOfGrainSizes):
-            summedGrainSizes += totalSedContent[f]
+        if (hasattr(totalSedContent, "__len__")):
+            nrOfGrainSizes = len(totalSedContent)
+            for f in range(nrOfGrainSizes):
+                summedGrainSizes += totalSedContent[f]
+        else:
+            summedGrainSizes = totalSedContent
         print("Column {}, total fill:".format(i), nodes[0][i], 'summed:', summedGrainSizes)
-        for f in range(nrOfGrainSizes):
-            print("Column {}, f={}:".format(i, f), nodes[f+1][i])
-        print('\n')
+        if (hasattr(totalSedContent, "__len__")):
+            for f in range(nrOfGrainSizes):
+                print("Column {}, f={}:".format(i, f), nodes[f+1][i])
+            print('\n')
+        else:
+            for f in range(len(nodes)-1): ## -2 for fill and deposittime columns
+                print("Column {}, f={}:".format(i, 'unknown'), nodes[f+1][i])
     #exit()
     
 def checkNodes(nodes, dy):
@@ -268,8 +276,11 @@ def checkNodes(nodes, dy):
 def erodeNodes(oldSedContent, totalSedContent, bedrockHeight, oldHeight, nodes):
     yetToBeEroded = oldSedContent - (totalSedContent-bedrockHeight)
     j = math.floor(oldHeight)
+    print("////", yetToBeEroded, oldSedContent, totalSedContent)
     while (yetToBeEroded > 0):
+        
         currentNodeSedContent = nodes[f+1,i,j]
+        print("yetToBeEroded", yetToBeEroded, currentNodeSedContent)
         if (currentNodeSedContent < yetToBeEroded): ## Remaining change exceeds one node
             nodes[f+1,i,j] = 0
             nodes[0,i,j] -= currentNodeSedContent
@@ -277,11 +288,12 @@ def erodeNodes(oldSedContent, totalSedContent, bedrockHeight, oldHeight, nodes):
             j -= 1
             if (j<0):
                 raise valueError('j cannot be <0', yetToBeEroded)
-            else:  ## Remaining change stays within one node
-                nodes[f+1,i,j] -= yetToBeEroded
-                nodes[0,i,j] -= yetToBeEroded
-                yetToBeEroded = 0
-        return nodes
+        else:  ## Remaining change stays within one node
+            nodes[f+1,i,j] -= yetToBeEroded
+            nodes[0,i,j] -= yetToBeEroded
+            yetToBeEroded = 0
+    print("////", yetToBeEroded, oldSedContent, totalSedContent)    
+    return nodes
 		
     
     
@@ -295,7 +307,7 @@ def depositNodes(totalSedContent, bedrockHeight, currentNodeFill, oldSedContent,
         # print(nodes[0][i])
         # print(f,i,j, len(nodes[0][i]), oldHeight, totalSedContent)
         # currentNodeFill = nodes[0,i,j]currentNodeFill = nodes[0,i,j]
-        # print(dy-currentNodeFill, flowFraction, (dy-currentNodeFill)*flowFraction, yetToBeDeposited)
+        print("---", j, nodes[0][i][j], currentNodeFill, dy-currentNodeFill, flowFraction, (dy-currentNodeFill)*flowFraction, yetToBeDeposited, nodes[0][i])
         nodes[len(nodes)-1,i,j] = t/yr2sec   #set time of deposition
         if ((dy-currentNodeFill)*flowFraction < yetToBeDeposited): #Remaining change exceeds one node
             nodes[0,i,j] += (dy-currentNodeFill)*flowFraction
@@ -307,7 +319,10 @@ def depositNodes(totalSedContent, bedrockHeight, currentNodeFill, oldSedContent,
             nodes[0,i,j] += yetToBeDeposited
             nodes[f+1,i,j] += yetToBeDeposited
             yetToBeDeposited = 0
-    
+    if nodes[0,i,j] > dy:
+        print("Error, node bigger then dy")
+        print(nodes[0,i])
+        printNodes(i, nodes, totalHeight[i], totalSedContent)
     return nodes
         
 
@@ -315,7 +330,7 @@ def depositNodes(totalSedContent, bedrockHeight, currentNodeFill, oldSedContent,
 def setNodes(i, k, nodes, totalHeight, bedrockHeight, nrOfGrainSizes, totalSedContent, dt, dx, dy, t):
     yr2sec = 60*60*24*365.25      #nr of seconds in a year
     
-    trace = False
+    trace = True
     
     # Infer the height of the column before alteration from how filled the nodes are
     oldHeight = 0
@@ -410,27 +425,50 @@ def setNodes(i, k, nodes, totalHeight, bedrockHeight, nrOfGrainSizes, totalSedCo
             nodes = erodeNodes(oldSedContent[f], totalSedContent[f], bedrockHeight, oldHeight, nodes)
         
     
-    ###-----------------------------##
-    ### Both Deposition and Erosion ##
-    ###-----------------------------##
+    ##-----------------------------##
+    ## Both Deposition and Erosion ##
+    ##-----------------------------##
     else: 
-        if (trace): print("Both Deposition and Erosion, column", i)
+        if (trace): print("\n\nBoth Deposition and Erosion, column", i)
         flowFractions = list(range(nrOfGrainSizes))
         sedContentChange  = list(range(nrOfGrainSizes))
         for f in range (nrOfGrainSizes):
             sedContentChange[f] = totalSedContent[f] - oldSedContent[f]
-            
+        
+        print("Before node erosion", nodes[0][i], nodes[1][i], nodes[2][i])
         for f in range (nrOfGrainSizes):    
             if (sedContentChange[f] < 0):
                 nodes = erodeNodes(oldSedContent[f], totalSedContent[f], bedrockHeight, oldHeight, nodes)
-                
-        ## Make sure nodes are correctly filled
+        print("After node erosion", nodes[0][i], nodes[1][i], nodes[2][i])
+        
+        ## Make sure nodes are correctly filled (not tested)
+        # for j in range(nodes[0][i].__length__):
+            # if (j < dy and j != 0  and j != nodes[0][i].__length__-1):
+                # missing = dy - nodes[0][i][j]
+                # nextNodeFraction = list(range(nrOfGrainSizes))
+                # for f in range(nrOfGrainSizes):
+                    # nextNodeFraction[f] = nodes[f+1][i][j+1]/nodes[0][i][j+1]
+                    # nodes[f+1][i][j+j] -= missing*nextNodeFraction[f]
+                    # nodes[f+1][i][j] += missing*Height[f]
+                    # nodes[0][i][j] += missing*nextNodeFraction[f]
+        
+        
+        j = math.floor(oldHeight)
         currentNodeFill = nodes[0][i][j]
+        print("currentNodeFill", currentNodeFill)
         for f in range (nrOfGrainSizes):            
             if (sedContentChange[f] > 0):
                 flowFraction = 1.0 ## If nrOfGrainSizes > 2, this is no longer valid
+                print("f:", f, flowFraction)
                 nodes = depositNodes(totalSedContent[f], bedrockHeight, currentNodeFill, oldSedContent[f], oldHeight, nodes, flowFraction, f, i, j, dy)
-        
+        print("___  ___", nodes[0][i], totalHeight, totalSedContent)
+    nodesum = 0
+    for j in range(len(nodes[0][i])):
+        nodesum += nodes[0][i][j]
+    if (not np.allclose(nodesum, totalHeight, atol=1e-14)):
+        print("Height mismatch", totalHeight, nodesum, totalHeight-nodesum, "totalSedContent", sum(totalSedContent))
+        printNodes(i, nodes, totalHeight, totalSedContent)
+        exit()
     return nodes
 
 ## Make time in seconds readable:
