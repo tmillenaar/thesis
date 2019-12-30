@@ -53,7 +53,7 @@ def _nbZeros_nd(shape):
     for i in range(len(shape)):
         k = List()
         for j in range(shape[i]):
-            k.append(0)
+            k.append(0.)
         l.append(k)
     return l
 
@@ -61,7 +61,7 @@ def _nbZeros_nd(shape):
 def _nbZeros_1d(length):
     l = List()
     for i in range(length):
-        l.append(0)
+        l.append(0.)
     return l
   
 @njit
@@ -70,24 +70,59 @@ def nbRange(length):
     for i in range(length):
         l.append(i)
     return l
-    
+
+
+@njit
+def nbStackedLists(shape):
+    #import pdb; pdb.set_trace()
+    l = List()
+    for i in range(shape[0]):
+        #k = List()
+        for j in range(1,len(shape)):
+            m = List()
+            for j in range(shape[j]):
+                m.append(0.)
+            #k.append(m)
+        l.append(m)
+    return l
+
+@njit
+def nbmin(values):
+    minVal = values[0]
+    for val in values:
+        if (val < minVal): minVal = val
+    return minVal
+
+@njit
+def nbmax(values):
+    maxVal = values[0]
+    for val in values:
+        if (val > maxVal): maxVal = val
+    return maxVal
+
+
+#import pdb; pdb.set_trace()
+
 heights = Dict()
+#heights['totalSedContent_'+str(f)] = nbStackedLists((imax+1,2))
 heights['totalHeight'] = nbZeros(imax+1)
 heights['bedrockHeight'] = nbZeros(imax+1)
-heights['totalSedContent'] = nbZeros(imax+1)
-heights['totalSedHeight'] = nbZeros(imax+1)
+
+for i in range(nrOfGrainSizes):
+    heights['totalSedContent_'+str(i)] = nbZeros(imax+1)
 
 nodes = Dict()
-nodes['nodeFill'] = nbZeros((imax+1,1))
-nodes['depTime'] = nbZeros((imax+1,1))
+nodes['nodeFill'] = nbStackedLists((imax+1, 1))
+nodes['depTime'] = nbStackedLists((imax+1, 1))
+nodes['sedContent'] = nbStackedLists((imax+1, 2))
 
-import pdb; pdb.set_trace()
+#import pdb; pdb.set_trace()
 
-for i in range(imax):
-    l = List()
-    for f in range(nrOfGrainSizes):
-        l.append(0)
-    nodes['sedContent'].append(l)
+#for i in range(imax):
+    #l = List()
+    #for f in range(nrOfGrainSizes):
+        #l.append(0.)
+    #nodes['sedContent'].append(l)
 
 totalInput= 0
 totalOutput= 0
@@ -99,74 +134,87 @@ tout = 0.                         # threshold to write next output in years (inc
 tout_progress = 2*dtout_progress    # threshold to update progress bar, will be increased whenever it is reached
 outputTimestep = 0
 
-for i in range(imax+1):
-    heights['totalHeight'][i] = 0
-    #newHeight[i] = 0
-    heights['bedrockHeight'][i] = 0
-    #columns[i] = []
-    for f in range(nrOfGrainSizes):
-        heights['totalSedContent'][i][f] = 0
-        heights['totalSedHeight'][i][f] = 0
+#for i in range(imax+1):
+    #heights['totalHeight'][i] = 0
+    ##newHeight[i] = 0
+    #heights['bedrockHeight'][i] = 0
+    ##columns[i] = []
+    #for f in range(nrOfGrainSizes):
+        #heights['totalSedContent_'+str(f)][i][f] = 0
+        #heights['totalSedHeight'][i][f] = 0
 
 @njit
-def setTimestep():
+def setTimestep(heights):
+    #import pdb; pdb.set_trace()
     """ Calculating the maximum timestep (dt) as limited by the active layer and the FTCS scheme. """
     dtFTCS = 0.9*(dx*dx)/(2.e0*((k[0]+k[1]))) ##FTCS
     maxHeightDiff = heights['totalHeight'][0]+(q0[0]+q0[1])*dtFTCS/dx-heights['totalHeight'][1] ## dtFTCS is used here as an estimation on the high side. It is better to estimate more sediment input resulting in a high slope then it is to estimate on the low side. A too low estimate of the sediment input can lead to an amount of sediment being removed somewhere that is more the the depth of the active layer. Higher estimates of q0 result in lowe dt and thus a slower run speed.
     for i in range(1,imax):
-        maxHeightDiff = max(maxHeightDiff, abs(heights['totalHeight'][i-1] - heights['totalHeight'][i]) )
+        localSlope = (heights['totalHeight'][i-1] - heights['totalHeight'][i]) 
+        if (localSlope > maxHeightDiff): maxHeightDiff = localSlope
         
+    #Obtain minimum dt
     if (maxHeightDiff != 0): ## Cannot devide by 0
-        dtHeightLimit = 0.9*(dx*dx)/( (k[0]+k[1]) * maxHeightDiff )
-        dt = min(dtFTCS, dtHeightLimit)
+        dtHeightLimit = 0.9*(dx*dx  )/( (k[0]+k[1]) * maxHeightDiff )
+        dt = dtFTCS 
+        if (dtFTCS > dtHeightLimit): dt = dtHeightLimit 
     else:
         dt = 0.1*(dx*dx)/(2.e0*((k[0]+k[1]))) ##FTCS
     return dt
 
 @njit
-def FTCS(dt, dx, q0, k, heights, totalInput, totalOutput, InputPerGrainSize, OutputPerGrainSize, subsidenceRate):
+def sedContentInActiveLayer(nodes):
+    return 10.
+    
+
+@njit
+def FTCS(dt, dx, q0, k, heights, nodes, totalInput, totalOutput, InputPerGrainSize, OutputPerGrainSize, subsidenceRate):
     """ Calculate the new topography profile and keep track of the total displacement in- and output of sediment in the meantime. """
-    sedIn = np.zeros(shape=(2,imax+1))
-    sedOut = np.zeros(shape=(2,imax+1))
-    newHeight = np.zeros(shape=(imax+1))
+    sedIn = nbStackedLists((2, imax+1))
+    sedOut = nbStackedLists((2, imax+1))
+    newHeight = _nbZeros_1d(imax+1)
     
     totalSedIn = 0
     totalSedOut = 0
     heights['totalHeight'][imax] = 0
+    
     ## Determine in- and output per column
     for i in range(imax+1): 
+        
         ## The case i==0 is treated as a special case in this loop and i==imax+1 remains untouched so it stays 0
         for f in range(nrOfGrainSizes):
             #Dph= ( D(i+1)+D(i) )/2.e0
             #Dmh= ( D(i)+D(i-1) )/2.e0
             Dph = k[f]
             Dmh = k[f]
-            
+            #import pdb; pdb.set_trace()
             if (i==0): 
+                #import pdb; pdb.set_trace()
                 if (heights['totalHeight'][0] >= heights['totalHeight'][1]): ## Slope goes down to the right
-                    sedIn[f,0] = q0[f]*dt/dx
+                    sedIn[f][0] = q0[f]*dt/dx
                     totalSedIn -= q0[f]*dt/dx
                 else: ## Slope goes down to the left
-                    sedIn[f,0] += q0[f]*dt/dx
+                    sedIn[f][0] += q0[f]*dt/dx
                     totalSedIn -= q0[f]*dt/dx
-                    sedOut[f,0] = 0
+                    sedOut[f][0] = 0
             else:
                 if (heights['totalHeight'][i-1] > heights['totalHeight'][i]): ## Slope goes down to the right
                     transport = ( (Dph*dt)/(dx*dx) )*( (heights['totalHeight'][i-1]) - ((heights['totalHeight'][i])) )
-                    transport = min(transport, heights['totalSedContent'][i-1][f])
-                    sedOut[f,i-1] += transport
-                    sedIn[f,i] += transport
+                    #transport = nbmin((transport, heights['totalSedContent_'+str(f)][i-1]))
+                    transport = nbmin((transport, sedContentInActiveLayer(nodes)))
+                    sedOut[f][i-1] += transport
+                    sedIn[f][i] += transport
 
                 elif (heights['totalHeight'][i-1] < heights['totalHeight'][i]): ## Slope goes down to the left
                     transport = ( (Dph*dt)/(dx*dx) )*( (heights['totalHeight'][i]) - ((heights['totalHeight'][i-1])) )
-                    transport = min(transport, heights['totalSedContent'][i][f])
-                    sedOut[f,i] += transport
-                    sedIn[f,i-1] += transport
+                    transport = nbmin((transport, sedContentInActiveLayer(nodes)))
+                    sedOut[f][i] += transport
+                    sedIn[f][i-1] += transport
     
     ## Set new height
     for i in range(imax+1): 
         for f in range(nrOfGrainSizes):
-            heights['totalSedContent'][i][f] = heights['totalSedContent'][i][f] + sedIn[f][i]-sedOut[f][i]
+            heights['totalSedContent_'+str(f)][i] = heights['totalSedContent_'+str(f)][i] + sedIn[f][i]-sedOut[f][i]
             heights['totalHeight'][i] += sedIn[f][i]-sedOut[f][i]
         if (heights['totalHeight'][i] < 0):
             heights['totalHeight'][i] = 0
@@ -174,25 +222,25 @@ def FTCS(dt, dx, q0, k, heights, totalInput, totalOutput, InputPerGrainSize, Out
     ## Set boundary condition at distal the end
     heights['totalHeight'][imax] = 0
     for f in range(nrOfGrainSizes):
-        heights['totalSedContent'][imax][f] = 0
+        heights['totalSedContent_'+str(f)][imax] = 0
         
         ## Keep track of total in- and output 
-        totalOutput += sedIn[f,imax]*dx
-        OutputPerGrainSize[f] += sedIn[f,imax]*dx
+        totalOutput += sedIn[f][imax]*dx
+        OutputPerGrainSize[f] += sedIn[f][imax]*dx
         totalInput += q0[f]*dt
         InputPerGrainSize[f] += q0[f]*dt
         
-    subsidence (heights, imax, subsidenceRate, nrOfGrainSizes)
-    return heights, InputPerGrainSize, OutputPerGrainSize, totalInput, totalOutput, sedOut#, totalSedIn, totalSedOut
+    heights = subsidence (heights, imax, subsidenceRate, nrOfGrainSizes)
+    return heights, nodes, InputPerGrainSize, OutputPerGrainSize, totalInput, totalOutput
 
 @njit
 def subsidence (heights, imax, subsidenceRate, nrOfGrainSizes):
     for i in range(imax+1):
         heights['bedrockHeight'][i] -= subsidenceRate*(imax-i)
-        #columns[i]["oldHeight"] = max( columns[i]["oldHeight"]-subsidenceRate*(imax-i) , heights['bedrockHeight'][i])
-        heights['totalHeight'][i] = max( heights['totalHeight'][i]-subsidenceRate*(imax-i) , heights['bedrockHeight'][i]) 
+        #columns[i]["oldHeight"] = nbmax( columns[i]["oldHeight"]-subsidenceRate*(imax-i) , heights['bedrockHeight'][i])
+        heights['totalHeight'][i] = nbmax(( heights['totalHeight'][i]-subsidenceRate*(imax-i) , heights['bedrockHeight'][i] )) 
   
-    return heights['totalHeight'], heights['bedrockHeight']
+    return heights
 
 ## Make time in seconds readable:
 def printElapsedTime(elapsedTime):
@@ -266,15 +314,16 @@ def writeOutput(heights):
     # nodeOutputTimestep += 1
     
     n= int(tout/dtout)
-    f = open("ISMolD_outputdata/relief/topography"+str(n)+".txt", "w")
+    myfile = open("ISMolD_outputdata/relief/topography"+str(n)+".txt", "w")
     for i in range(len(heights['totalHeight'])):
         writeline = str(i)+" "+str(heights['totalHeight'][i])
         writeline += " "+str(heights['bedrockHeight'][i])
-        for sedContent in heights['totalSedContent'][i]:
-            writeline += " "+str(sedContent + heights['bedrockHeight']) ## Note that heights['bedrockHeight'] is generally negative
+        for f in range(nrOfGrainSizes):
+            sedContent = heights['totalSedContent_'+str(f)][i]
+            writeline += " "+str(sedContent + heights['bedrockHeight'][i]) ## Note that heights['bedrockHeight'] is generally negative
         writeline += "\n"
-        f.write(writeline)
-    f.close()
+        myfile.write(writeline)
+    myfile.close()
     
 #def setNodes(heights, newTotalHeight, newBedrockHeight, nodes):
     
@@ -329,19 +378,19 @@ if __name__=="__main__":
                 print("Error, negative input. t=", str(t/yr2sec)+"yr", "q0["+str(i)+"]="+str(q0[i]))
                 exit()
         
-        dt = setTimestep()
+        dt = setTimestep(heights)
         
         #Call FTCS to obtain the new height profile
-        heights, InputPerGrainSize, OutputPerGrainSize, totalInput, totalOutput, newTotalHeight, newBedrockHeight, sedOut = FTCS(dt, dx, q0, k, heights, totalInput, totalOutput, InputPerGrainSize, OutputPerGrainSize, subsidenceRate)
+        newHeights, nodes, InputPerGrainSize, OutputPerGrainSize, totalInput, totalOutput = FTCS(dt, dx, q0, k, heights, nodes, totalInput, totalOutput, InputPerGrainSize, OutputPerGrainSize, subsidenceRate)
         #setNodes(heights['totalHeight'], heights['bedrockHeight'], newTotalHeight, newBedrockHeight, nodes)
-        heights['totalHeight'] = newTotalHeight
-        heights['bedrockHeight'] = newBedrockHeight
+        heights['totalHeight'] = newHeights['totalHeight']
+        heights['bedrockHeight'] = newHeights['bedrockHeight']
         
         
         if (t >= tout):
-            writeOutput(heights['totalHeight'], heights['bedrockHeight'])
+            writeOutput(heights)
             tout += dtout
-            # tout = writeOutput(imax, nrOfGrainSizes, heights['totalHeight'], heights['totalSedContent'], totalInput, InputPerGrainSize, OutputPerGrainSize, q0, sedOut, tout, dtout, outputTimestep)
+            # tout = writeOutput(imax, nrOfGrainSizes, heights['totalHeight'], heights['totalSedContent_'+str(f)], totalInput, InputPerGrainSize, OutputPerGrainSize, q0, sedOut, tout, dtout, outputTimestep)
             outputTimestep += 1
         t += dt
         
@@ -350,7 +399,7 @@ if __name__=="__main__":
             tout_progress += dtout_progress
     
     # for i in range(5):
-        # printNodes(i, nodes, heights['totalHeight'][i], heights['totalSedContent'][i])
+        # printNodes(i, nodes, heights['totalHeight'][i], heights['totalSedContent_'+str(f)][i])
     printElapsedTime(time()-start)
     
 
