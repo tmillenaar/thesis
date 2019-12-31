@@ -100,11 +100,18 @@ def nbmax(values):
         if (val > maxVal): maxVal = val
     return maxVal
 
+@njit
+def numbaSumList(mylist):
+    total = 0
+    for value in mylist:
+        total += value
+    return total
 
 #import pdb; pdb.set_trace()
 
+totalSedContent = nbStackedLists((imax+1, nrOfGrainSizes))
+
 heights = Dict()
-#heights['totalSedContent_'+str(f)] = nbStackedLists((imax+1,2))
 heights['totalHeight'] = nbZeros(imax+1)
 heights['bedrockHeight'] = nbZeros(imax+1)
 
@@ -114,7 +121,7 @@ for i in range(nrOfGrainSizes):
 nodes = Dict()
 nodes['nodeFill'] = nbStackedLists((imax+1, 1))
 nodes['depTime'] = nbStackedLists((imax+1, 1))
-nodes['sedContent'] = nbStackedLists((imax+1, 2))
+nodes['sedContent'] = nbStackedLists((2, imax+1))
 
 #import pdb; pdb.set_trace()
 
@@ -163,12 +170,12 @@ def setTimestep(heights):
     return dt
 
 @njit
-def sedContentInActiveLayer(nodes):
-    return 10.
+def sedContentInActiveLayer(nodes, totalSedContent, i, f):
+    return totalSedContent[i][f]
     
 
 @njit
-def FTCS(dt, dx, q0, k, heights, nodes, totalInput, totalOutput, InputPerGrainSize, OutputPerGrainSize, subsidenceRate):
+def FTCS(dt, dx, q0, k, heights, totalSedContent, nodes, totalInput, totalOutput, InputPerGrainSize, OutputPerGrainSize, subsidenceRate):
     """ Calculate the new topography profile and keep track of the total displacement in- and output of sediment in the meantime. """
     sedIn = nbStackedLists((2, imax+1))
     sedOut = nbStackedLists((2, imax+1))
@@ -201,20 +208,21 @@ def FTCS(dt, dx, q0, k, heights, nodes, totalInput, totalOutput, InputPerGrainSi
                 if (heights['totalHeight'][i-1] > heights['totalHeight'][i]): ## Slope goes down to the right
                     transport = ( (Dph*dt)/(dx*dx) )*( (heights['totalHeight'][i-1]) - ((heights['totalHeight'][i])) )
                     #transport = nbmin((transport, heights['totalSedContent_'+str(f)][i-1]))
-                    transport = nbmin((transport, sedContentInActiveLayer(nodes)))
+                    transport = nbmin((transport, sedContentInActiveLayer(nodes, totalSedContent, i, f)))
                     sedOut[f][i-1] += transport
                     sedIn[f][i] += transport
 
                 elif (heights['totalHeight'][i-1] < heights['totalHeight'][i]): ## Slope goes down to the left
                     transport = ( (Dph*dt)/(dx*dx) )*( (heights['totalHeight'][i]) - ((heights['totalHeight'][i-1])) )
-                    transport = nbmin((transport, sedContentInActiveLayer(nodes)))
+                    transport = nbmin((transport, sedContentInActiveLayer(nodes, totalSedContent, i, f)))
                     sedOut[f][i] += transport
                     sedIn[f][i-1] += transport
     
+    newSedContent = nbStackedLists((imax+1, nrOfGrainSizes))
     ## Set new height
     for i in range(imax+1): 
         for f in range(nrOfGrainSizes):
-            heights['totalSedContent_'+str(f)][i] = heights['totalSedContent_'+str(f)][i] + sedIn[f][i]-sedOut[f][i]
+            newSedContent[i][f] = totalSedContent[i][f] + sedIn[f][i]-sedOut[f][i]
             heights['totalHeight'][i] += sedIn[f][i]-sedOut[f][i]
         if (heights['totalHeight'][i] < 0):
             heights['totalHeight'][i] = 0
@@ -222,7 +230,7 @@ def FTCS(dt, dx, q0, k, heights, nodes, totalInput, totalOutput, InputPerGrainSi
     ## Set boundary condition at distal the end
     heights['totalHeight'][imax] = 0
     for f in range(nrOfGrainSizes):
-        heights['totalSedContent_'+str(f)][imax] = 0
+        sedContentInActiveLayer(nodes, totalSedContent, i, f)
         
         ## Keep track of total in- and output 
         totalOutput += sedIn[f][imax]*dx
@@ -325,24 +333,29 @@ def writeOutput(heights):
         myfile.write(writeline)
     myfile.close()
     
-#def setNodes(heights, newTotalHeight, newBedrockHeight, nodes):
+def setNodes(heights, nodes, newTotalHeight, newBedrockHeight):
     
-    #trace = True
-    
-    #if ( (newTotalHeight - heights['totalHeight'] == 0): ## Nothing happens
-        #return column
+    trace = True
+    import pdb; pdb.set_trace()
+    for i in range(len(newTotalHeight)):
         
-    ### Deposition ##
-    #elif all( (newSedContent[q]-column["oldSedContent"][q])>=0 for q in range(nrOfGrainSizes) ): 
-        #if (trace): print("ONLY DEPOSITION", i)
+        for f in range(nrOfGrainSizes):
+            newSedContent = 1
         
-    ### Erosion ##
-    #elif ( (newHeight - column["oldHeight"]) < 0 and all( (newSedContent[q]-column["oldSedContent"][q])<=0 for q in range(nrOfGrainSizes)) ):  ## Erosion
-        #if (trace): print("ONLY EROSION", i)
-    
-    ### Both Deposition and Erosion ##
-    #else: 
-        #if (trace): print("Both Deposition and Erosion", i)
+        #if ( (newTotalHeight[i] - heights['totalHeight'][i] == 0): ## Nothing happens
+            #return nodes
+            
+        ### Deposition ##
+        #elif all( (newSedContent[q]-column["oldSedContent"][q])>=0 for q in range(nrOfGrainSizes) ): 
+            #if (trace): print("ONLY DEPOSITION", i)
+            
+        ### Erosion ##
+        #elif ( (newHeight - column["oldHeight"]) < 0 and all( (newSedContent[q]-column["oldSedContent"][q])<=0 for q in range(nrOfGrainSizes)) ):  ## Erosion
+            #if (trace): print("ONLY EROSION", i)
+        
+        ### Both Deposition and Erosion ##
+        #else: 
+            #if (trace): print("Both Deposition and Erosion", i)
         
         
     #return nodes
@@ -381,8 +394,8 @@ if __name__=="__main__":
         dt = setTimestep(heights)
         
         #Call FTCS to obtain the new height profile
-        newHeights, nodes, InputPerGrainSize, OutputPerGrainSize, totalInput, totalOutput = FTCS(dt, dx, q0, k, heights, nodes, totalInput, totalOutput, InputPerGrainSize, OutputPerGrainSize, subsidenceRate)
-        #setNodes(heights['totalHeight'], heights['bedrockHeight'], newTotalHeight, newBedrockHeight, nodes)
+        newHeights, nodes, InputPerGrainSize, OutputPerGrainSize, totalInput, totalOutput = FTCS(dt, dx, q0, k, heights, totalSedContent, nodes, totalInput, totalOutput, InputPerGrainSize, OutputPerGrainSize, subsidenceRate)
+        #setNodes(heights, newTotalHeight, newBedrockHeight, nodes)
         heights['totalHeight'] = newHeights['totalHeight']
         heights['bedrockHeight'] = newHeights['bedrockHeight']
         
