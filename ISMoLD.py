@@ -65,21 +65,21 @@ def setBoudnaryCondtitionValues(t, tmax, nrOfGrainSizes):
     #q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [(tmax/4), 50000*yr2sec], [2.0e-6, -0.0e-6] , [2.0e-6, 0.2e-6], 0)
     #q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [(tmax/4), 50000*yr2sec], [1.0e-6, -0.0e-6] , [1.0e-6, 0.2e-6], 0)
     
-    q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 4.0e-7 , 6.0e-7, 0)
-    q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 4.0e-7 , 4.5e-7, 0)
+    #q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 4.0e-7 , 6.0e-7, 0)
+    #q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 4.0e-7 , 4.5e-7, 0)
     
-    k[0] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 1.5*3.2e-4, 1.7*3.2e-4, 0)
-    k[1] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 2*3.2e-4 , 2.7*3.2e-4, 0)
+    #k[0] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 1.5*3.2e-4, 1.7*3.2e-4, 0)
+    #k[1] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 2*3.2e-4 , 2.7*3.2e-4, 0)
     
-    if (t>0.5*tmax):
-        q0[0] = 0
-        q0[1] = 0
+    #if (t>0.5*tmax):
+        #q0[0] = 0
+        #q0[1] = 0
     
     #k[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [20000*yr2sec, 60000*yr2sec], [1*3.2e-4, 0.5*3.2e-4] , [1*3.2e-4, 1*3.2e-4], 0)
     #k[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [20000*yr2sec, 60000*yr2sec], [2*3.2e-4, 1*3.2e-4] , [2*3.2e-4, 2*3.2e-4], 0)
     
-    subsidenceRate = setPeriodicForcingValues(t, nrOfGrainSizes, tmax, 2e-5, 3e-7)
-    #subsidenceRate = 2e-6
+    #subsidenceRate = setPeriodicForcingValues(t, nrOfGrainSizes, tmax, 2e-5, 3e-7)
+    subsidenceRate = 0#2e-6
     #k[0]= 4*3.2e-4                # Gravel diffusivity (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
     #k[1]= 5*3.2e-4                # Sand diffusivity (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
     return q0, k, subsidenceRate
