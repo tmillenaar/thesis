@@ -366,7 +366,7 @@ def setNodes(i, k, newHeight, column, newSedContent, dt, dx, dy, rho0, t):
         ## First erode all material
         erosionContent = list(range(nrOfGrainSizes))
         
-        erosionDensity = rho0 * ( column["oldHeight"] - newHeight ) ## Make this dependent on the nodes!!!!
+        #erosionDensity = rho0 * ( column["oldHeight"] - newHeight ) ## Make this dependent on the nodes!!!!
         
         for p in range (nrOfGrainSizes):
             sedContentChange[p] = newSedContent[p] - column["oldSedContent"][p]

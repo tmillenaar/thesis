@@ -43,7 +43,7 @@ enableSubsidence = True
 
 dx= 1e3                      # width of each node/column (m)
 imax= 100                     # number of nodes
-tmax= 50000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+tmax= 100000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
 dtout = tmax/100              # nr of years between write output
 dtout_progress = 10*yr2sec    # nr of years between progress bar update
 
@@ -64,6 +64,8 @@ def setBoudnaryCondtitionValues(t, tmax, nrOfGrainSizes):
     ###     setPeriodicForcingValues(t, nrOfGrainSizes, periods, amplitudes, averages, minval="NULL")   note: mival is optional!
     #q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [(tmax/4), 50000*yr2sec], [2.0e-6, -0.0e-6] , [2.0e-6, 0.2e-6], 0)
     #q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [(tmax/4), 50000*yr2sec], [1.0e-6, -0.0e-6] , [1.0e-6, 0.2e-6], 0)
+    q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [0.5*tmax], [2.0e-7] , [4.0e-7], 0)
+    q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [0.5*tmax], [1.0e-7] , [3.0e-7], 0)
     
     #q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 4.0e-7 , 6.0e-7, 0)
     #q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 4.0e-7 , 4.5e-7, 0)

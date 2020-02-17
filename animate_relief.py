@@ -56,7 +56,7 @@ def update(i):
 if __name__ == '__main__':
     # FuncAnimation will call the 'update' function for each frame; here
     # animating over 10 frames, with an interval of 200ms between frames.
-    anim = FuncAnimation(fig, update, frames=np.arange(0, nr_frames), interval=50)
+    anim = FuncAnimation(fig, update, frames=np.arange(0, nr_frames), interval=10)
     plt.legend(loc=1, borderaxespad=0.)
     # anim.save('test.gif', dpi=80, writer='imagemagick')
     plt.show()

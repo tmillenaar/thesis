@@ -3,6 +3,7 @@ from numba import jit, njit
 from numba.typed import List, Dict
 from time import time
 import numpy as np
+import math
 import os
 
 start = time()
@@ -11,9 +12,9 @@ yr2sec = 60*60*24*365.25          #nr of seconds in a year
 
 dx              = 1e3             # width of each node/column (m)
 imax            = 100             # number of nodes
-tmax            = 50000*yr2sec    # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
-dtout           = tmax/100        # nr of years between write output
-dtout_progress  = 10*yr2sec       # nr of years between progress bar update
+tmax            = 100000*yr2sec    # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+dtout           = tmax/25        # nr of years between write output
+dtout_progress  = 100*yr2sec       # nr of years between progress bar update
 
         
 nrOfGrainSizes  = 2
@@ -29,6 +30,7 @@ k[1]= 2*3.2e-4                    # Sand diffusivity (m2/s)  Attention: will be 
 
 subsidenceRate = 0#2.e-6
 
+nodeOutputTimestep = 0            # Used in writing node output files
 
 def makeList(mylist):
     l = List()
@@ -44,7 +46,7 @@ def nbZeros(*args):
         return _nbZeros_1d(args[0])
     
     
-# @njit
+# @njit(cache=True)
 # def _nbZeros(shape):
     # ar1 = List()
     # ar2 = List()
@@ -87,14 +89,14 @@ def _nbZeros(shape):
         l = _nbZeros_1d(shape[0])
     return l
 
-@njit
+@njit(cache=True)
 def _nbZeros_1d(length):
     l = List()
     for i in range(length):
         l.append(0.)
     return l
 
-@njit
+@njit(cache=True)
 def _nbZeros_2d(shape):
     l = List()
     for i in range(shape[0]):
@@ -112,7 +114,7 @@ def _nbZeros_2d(shape):
     # return result
       
   
-# @njit
+# @njit(cache=True)
 # def _nbZeros_nd(shape):
     # l = List()
     # for i in range(len(shape)):
@@ -122,14 +124,14 @@ def _nbZeros_2d(shape):
         # l.append(k)
     # return l
 
-# @njit
+# @njit(cache=True)
 # def _nbZeros_1d(length):
     # l = List()
     # for i in range(length):
         # l.append(0.)
     # return l
   
-@njit
+@njit(cache=True)
 def nbRange(length):
     l = List()
     for i in range(length):
@@ -141,7 +143,7 @@ def nbStackedLists(*args):
     assert all([type(val).__name__ == 'int' for val in args]), 'Please only unput integers into nbStackedLists(), got {}'.format([type(val).__name__ for val in args])
     return _nbStackedLists(args)
 
-@njit
+@njit(cache=True)
 def _nbStackedLists(shape):
     #import pdb; pdb.set_trace()
     l = List()
@@ -155,21 +157,21 @@ def _nbStackedLists(shape):
         l.append(k)
     return l
 
-@njit
+@njit(cache=True)
 def nbmin(values):
     minVal = values[0]
     for val in values:
         if (val < minVal): minVal = val
     return minVal
 
-@njit
+@njit(cache=True)
 def nbmax(values):
     maxVal = values[0]
     for val in values:
         if (val > maxVal): maxVal = val
     return maxVal
 
-@njit
+@njit(cache=True)
 def numbaSumList(mylist):
     total = 0
     for value in mylist:
@@ -198,7 +200,7 @@ tout = 0.                         # threshold to write next output in years (inc
 tout_progress = 2*dtout_progress    # threshold to update progress bar, will be increased whenever it is reached
 outputTimestep = 0
 
-@njit
+@njit(cache=True)
 def setTimestep(totalHeight):
     """ Calculating the maximum timestep (dt) as limited by the active layer and the FTCS scheme. """
     dtFTCS = 0.9*(dx*dx)/(2.e0*((k[0]+k[1]))) ##FTCS
@@ -216,13 +218,31 @@ def setTimestep(totalHeight):
         dt = 0.1*(dx*dx)/(2.e0*((k[0]+k[1]))) ##FTCS
     return dt
 
-@njit
-def sedContentInActiveLayer(nodeFill, totalSedContent, i, f):
-    return totalSedContent[i][f]
+@njit(cache=True)
+def sedContentInActiveLayer(nodeFill, nodeSedContent, i):
     
+    maxNode = len(nodeFill[i]) - 1 ## -1 since node count starts at 0 and len() starts at 1
+    fillInActiveLayer = 0
+    sedFractions = np.zeros(shape=(nrOfGrainSizes))
+    sedContentInActiveLayer = np.zeros(shape=(nrOfGrainSizes))
+    
+    for j in range(maxNode, -1, -1):
+        remainder = 1-fillInActiveLayer
+        if (remainder  <= 0): break
+        
+        if (nodeFill[i][j] > 0):
+            for f in range(nrOfGrainSizes):
+                sedFractions[f] = nodeSedContent[i][j][f]/nodeFill[i][j]
+            
+            for f in range(nrOfGrainSizes):
+                toBeAdded = nbmin((remainder*sedFractions[f], nodeSedContent[i][j][f]))
+                sedContentInActiveLayer[f] += toBeAdded
+                fillInActiveLayer += toBeAdded
+        # import pdb; pdb.set_trace()
+    return sedContentInActiveLayer
 
-@njit
-def FTCS(totalHeight, bedrockHeight, totalSedContent, nodeFill, nodeSedContent):#dt, dx, q0, k, 
+@njit(cache=True)
+def FTCS(totalHeight, bedrockHeight, totalSedContent, nodeFill, nodeSedContent, q0, subsidenceRate):#dt, dx, q0, k, 
     """ Calculate the new topography profile and keep track of the total displacement in- and output of sediment in the meantime. """
     sedIn = _nbZeros_2d((imax+1, nrOfGrainSizes))
     sedOut = _nbZeros_2d((imax+1, nrOfGrainSizes))
@@ -255,21 +275,22 @@ def FTCS(totalHeight, bedrockHeight, totalSedContent, nodeFill, nodeSedContent):
                 if (totalHeight[i-1] > totalHeight[i]): ## Slope goes down to the right
                     transport = ( (Dph*dt)/(dx*dx) )*( totalHeight[i-1] - (totalHeight[i]) )
                     #transport = nbmin((transport, heights['totalSedContent_'+str(f)][i-1]))
-                    transport = nbmin((transport, sedContentInActiveLayer(nodeFill, totalSedContent, i-1, f)))
+                    transport = nbmin((transport, sedContentInActiveLayer(nodeFill, nodeSedContent, i-1)[f]))
                     transport = min(transport, totalSedContent[i-1][f])
                     sedOut[i-1][f] += transport
                     sedIn[i][f] += transport
 
                 elif (totalHeight[i-1] < totalHeight[i]): ## Slope goes down to the left
                     transport = ( (Dph*dt)/(dx*dx) )*( (totalHeight[i]) - (totalHeight[i-1]) )
-                    transport = nbmin((transport, sedContentInActiveLayer(nodeFill, totalSedContent, i-1, f)))
+                    transport = nbmin((transport, sedContentInActiveLayer(nodeFill, nodeSedContent, i-1)[f]))
+                    # transport = nbmin((transport, totalSedContent[i-1][f]))
                     sedOut[i][f] += transport
                     sedIn[i-1][f] += transport
     
     newSedContent = _nbZeros_2d((imax+1, nrOfGrainSizes))
     
     newTotalHeight = np.zeros(shape=(imax+1))
-    newBedrockHeight = np.zeros(shape=(imax+1))
+    # newBedrockHeight = np.zeros(shape=(imax+1))
     
     ## Set new height
     for i in range(imax+1): 
@@ -292,12 +313,12 @@ def FTCS(totalHeight, bedrockHeight, totalSedContent, nodeFill, nodeSedContent):
         # totalInput += q0[f]*dt
         # InputPerGrainSize[f] += q0[f]*dt
         
-    # newHeights= subsidence (newHeights, imax, subsidenceRate, nrOfGrainSizes)
+    # newTotalHeight, newBedrockHeight= subsidence (newTotalHeight, newBedrockHeight, subsidenceRate)
     # import pdb; pdb.set_trace()
-    return newTotalHeight, newBedrockHeight, newSedContent
+    return newTotalHeight, newSedContent
 
-@njit
-def subsidence (totalHeight, bedrockHeight):
+@njit(cache=True)
+def subsidence (totalHeight, bedrockHeight, subsidenceRate):
     for i in range(imax+1):
         bedrockHeight[i] -= subsidenceRate*(imax-i)
         #columns[i]["oldHeight"] = nbmax( columns[i]["oldHeight"]-subsidenceRate*(imax-i) , bedrockHeight[i])
@@ -357,24 +378,28 @@ def makeDirectories():
     if (not os.path.isdir("ISMolD_outputdata/nodes")):
         os.mkdir("ISMolD_outputdata/nodes")   
 
-def writeOutput(totalHeight, bedrockHeight, totalSedContent):
+
+def writeOutput(totalHeight, bedrockHeight, totalSedContent, nodeSedContent, nodeOutputTimestep, outputTimestep):
     
-    # makeTimeNodeDirectory(nodeOutputTimestep)
+    print("      "+str( (math.ceil(100000*t/tmax))/1000 )+"%       Writing output {}".format(outputTimestep), end="\r") ##Update progress tracker with writer
+    
+    if (not os.path.isdir("ISMolD_outputdata/nodes/time"+str(nodeOutputTimestep))):
+        os.mkdir("ISMolD_outputdata/nodes/time"+str(nodeOutputTimestep))
         
-    # for i in range(len(x)-1): ## -1 for the last column is always empty (by design). Therefore there is no need to create a file for it.
-        # f = open("ISMolD_outputdata/nodes/time"+str(nodeOutputTimestep)+"/column"+str(i)+".txt", "w")
-        # jrange = len(columns[i]["nodes"])
-        # for j in range(jrange): 
-            # writeline = str(j)+" "+ str(columns[i]["totalHeight"])
-            # writeline += " "+str(columns[i]["bedrockHeight"])
-            # for p in range(nrOfGrainSizes):
-                # writeline += " "+str(columns[i]["nodes"][j]["nodeSedContent"][p])
+    for i in range(imax): ## -1 for the last column is always empty (by design). Therefore there is no need to create a file for it.
+        outputFile = open("ISMolD_outputdata/nodes/time"+str(nodeOutputTimestep)+"/column"+str(i)+".txt", "w")
+        jrange = len(nodeFill[i])
+        for j in range(jrange): 
+            writeline = str(j)+" "+ str(totalHeight[i])
+            writeline += " "+str(bedrockHeight[i])
+            for f in range(nrOfGrainSizes):
+                writeline += " "+str(nodeSedContent[i][j][f])
             # writeline += " "+ str(columns[i]["nodes"][j]["depositionTimeInYears"]) 
-            # writeline += "\n"
-            # f.write(writeline)
-        # f.close()
+            writeline += "\n"
+            outputFile.write(writeline)
+        outputFile.close()
     
-    # nodeOutputTimestep += 1
+    nodeOutputTimestep += 1
     
     n= int(tout/dtout)
     myfile = open("ISMolD_outputdata/relief/topography"+str(n)+".txt", "w")
@@ -388,10 +413,119 @@ def writeOutput(totalHeight, bedrockHeight, totalSedContent):
         myfile.write(writeline)
     myfile.close()
     
-# @njit
-def setNodes(totalHeight, bedrockHeight, newHeights, totalSedContent, newSedContent, nodes):
+    return nodeOutputTimestep
     
-    trace = True
+@njit(cache=True)
+def depositNodes(sedContentChange, i, f, flowFraction, nodeFill, nodeSedContent, oldNodeFills):
+    trace = False
+    j = math.floor(totalHeight[i]-bedrockHeight[i])
+    toBeDeposited = sedContentChange
+    while (toBeDeposited > 0):
+        currentNodeFill = oldNodeFills[j]
+        currentNodeSedContent = nodeSedContent[i][j][f]
+        remainingNodeFill = 1.-currentNodeFill
+        reservedFill = remainingNodeFill - remainingNodeFill*flowFraction # Reserved space in node j for other grain sizes 
+        # import pdb; pdb.set_trace()
+            
+            ## Todo depositTime.append(_nbZeros_1d(1))
+        
+        ## Note: newNodeSedContent must be set before newNodeDensity, for the variable depositDensity is altered in setting newNodeDensity and must be used unaltered when setting newNodeSedContent
+        ## Set new nodeSedContent:
+        # if i ==0: import pdb; pdb.set_trace()
+        if (currentNodeFill + toBeDeposited > 1-reservedFill): ## Cross a node boundary
+            if (trace): print("ONLY DEPOSITION, cross boundary. Column:", i)
+            # import pdb; pdb.set_trace()
+            # nodeSedContent[i].append(_nbZeros_1d(nrOfGrainSizes))  ## TODO move one layer up. Compare length to totalHeight
+            # nodeFill[i].append(0.)  ## TODO move one layer up. Compare length to totalHeight
+            nodeSedContent[i][j][f] += remainingNodeFill * flowFraction
+            nodeFill[i][j] += remainingNodeFill * flowFraction
+            toBeDeposited -= remainingNodeFill * flowFraction
+            
+                # column["nodes"][j].update({"depositionTimeInYears":t/yr2sec})
+        else: ## Change stays within one node:
+            if (trace): print("ONLY DEPOSITION, inter node", i)
+            nodeSedContent[i][j][f] += toBeDeposited# * flowFraction
+            nodeFill[i][j] += toBeDeposited# * flowFraction
+            toBeDeposited = 0
+                
+            # if(sum(current_nodeSedContent) == 0):
+                # column["nodes"][j].update({"depositionTimeInYears":t/yr2sec})
+        j+=1
+    return nodeFill, nodeSedContent
+    
+@njit(cache=True)
+def erodeNodes(toBeEroded, i, f, nodeFill, nodeSedContent, maxNode):
+    # j = math.floor(totalHeight[i]-bedrockHeight[i])
+    j = maxNode
+    # if totalHeight[i] > 1: 
+    # print('New maxNode:', j, 'i:', i, totalHeight[i], totalHeight[i], totalHeight[i]-bedrockHeight[i])
+    while (toBeEroded > 0):
+        if totalHeight[i] > 1: print('i:', i, 'j:', j, 'f:', f, 't: ', t)
+        currentNodeSedContent = nodeSedContent[i][j][f]
+        # import pdb; pdb.set_trace()
+        if (toBeEroded > currentNodeSedContent): ## Cross a node boundary
+            # if (trace): print("ONLY DEPOSITION, cross boundary. Column:", i)
+            nodeSedContent[i][j][f] -= currentNodeSedContent
+            nodeFill[i][j] -= currentNodeSedContent
+            toBeEroded -= currentNodeSedContent
+            nodeFill, nodeSedContent = checkNodes(i, nodeFill, nodeSedContent)
+            # if (currentNodeSedContent < 1e-17):
+                # toBeEroded = 0
+            # if j==0: 
+            if totalHeight[i] > 1: print('HIT', 'i:', i, 'j:', j, toBeEroded, nodeSedContent[i][j][f], currentNodeSedContent)
+            
+        else: ## Change stays within one node:
+            # if (trace): print("ONLY DEPOSITION, inter node", i)
+            nodeSedContent[i][j][f] -= toBeEroded
+            nodeFill[i][j] -= toBeEroded
+            break
+            
+        j-=1
+        # if (j < 0 and toBeEroded!=0):
+        if (j < 0):
+            print(toBeEroded > 0)
+            print("j<0, mass not eroded:", toBeEroded, 'j, i, f:', j, i, f)
+            print(nodeSedContent[i])
+            break
+    return nodeFill, nodeSedContent
+
+@njit(cache=True)
+def checkNodes(i, nodeFill, nodeSedContent):
+
+    ## Make sure only the top node is not fully filled
+    maxNode = len(nodeFill[i]) - 1 ## -1 since node count starts at 0 and len() starts at 1
+    if (maxNode == -1): maxNode = 0
+    # j=maxNode
+    nextNodeFraction = np.zeros(shape=(nrOfGrainSizes,))
+    for j in range(maxNode):
+        nextNodeContentSum = 0
+        for f in range(nrOfGrainSizes):
+            nextNodeContentSum += nodeSedContent[i][j+1][f] #= np.sum(nodeSedContent[i][j+1])
+            
+        if (nextNodeContentSum == 0): 
+            return nodeFill, nodeSedContent
+            # print("Error! nextNodeContentSum = 0", column) ## Should not be the case and cannot divide by 0 in next mention
+            # exit()
+        for f in range (nrOfGrainSizes):
+            nextNodeFraction[f] = nodeSedContent[i][j+1][f]/nextNodeContentSum
+        if (nodeFill[i][j] < 1 and j < maxNode):
+            # nodeFill, nodeSedContent = checkNodes(i, nodeFill, nodeSedContent)
+            # currentDensity = column["nodes"][j]["density"]
+            # missingDensity = rho0 - column["nodes"][j]["density"]
+            # print('Before: ', j, nodeSedContent[i])
+            missingFill = 1 - nodeFill[i][j]
+            redistributedFill = nbmin((missingFill, nodeFill[i][j+1]))
+            nodeFill[i][j] += redistributedFill
+            nodeFill[i][j+1] -= redistributedFill
+            for f in range(nrOfGrainSizes):
+                nodeSedContent[i][j][f] += redistributedFill * nextNodeFraction[f]
+                nodeSedContent[i][j+1][f] -= redistributedFill * nextNodeFraction[f]
+            # print('After: ', j, nodeSedContent[i])
+    return nodeFill, nodeSedContent
+    
+@njit(cache=True)
+def setNodes(totalHeight, bedrockHeight, newTotalHeight, newBedrockHeight, totalSedContent, newSedContent, nodeFill, nodeSedContent):
+    trace = False
     #import pdb; pdb.set_trace()
     for i in range(len(newTotalHeight)):
         
@@ -399,7 +533,7 @@ def setNodes(totalHeight, bedrockHeight, newHeights, totalSedContent, newSedCont
             #newSedContent = 1
         
         if ( (newTotalHeight[i] - totalHeight[i]) == 0): ## Nothing happens
-            return nodes
+            return nodeFill, nodeSedContent ## Note, this is probably false in some edge case where no change occurs halfway the slope, though this seems improbable
         
         onlyDeposition = True
         onlyErosion = True
@@ -409,42 +543,143 @@ def setNodes(totalHeight, bedrockHeight, newHeights, totalSedContent, newSedCont
             
         ## Deposition ##
         if (onlyDeposition):
-            if (trace): print("ONLY DEPOSITION", i)
+            
             flowFractions = np.zeros(shape=nrOfGrainSizes)
             # sedContentChange = nbStackedLists((imax+1, nrOfGrainSizes))
-            sedContentChange = np.zeros(shape=(imax+1, nrOfGrainSizes))
+            sedContentChange = np.zeros(shape=(nrOfGrainSizes))
             
             for f in range (nrOfGrainSizes):
-                sedContentChange[i][f] = newSedContent[i][f] - totalSedContent[i][f]
+                sedContentChange[f] = (newSedContent[i][f]-newBedrockHeight[i]) - (totalSedContent[i][f]-bedrockHeight[i])
                 
             for f in range (nrOfGrainSizes):    
                 if (np.sum(sedContentChange) != 0):
-                    flowFractions[f] = sedContentChange[i][f]/np.sum(sedContentChange[i])
+                    flowFractions[f] = sedContentChange[f]/np.sum(sedContentChange)
                 else:
                     flowFractions[f] = 0
-            import pdb; pdb.set_trace()
-            toBeDeposited = np.sum(sedContentChange)
-            while (toBeDeposited > 0):
-                currentNodeDensity = nodes['nodeFill'][i][-1]
-                currentNodeSedContent = np.zeros(shape=nrOfGrainSizes)
-                for f in range(nrOfGrainSizes):
-                    currentNodeSedContent[f] = nodes['sedContent'][i][-1][f]
+            
+            # import pdb; pdb.set_trace()
+            nrNodes = len(nodeFill[i])-1
+            if (nrNodes < newTotalHeight[i]-newBedrockHeight[i]):
+                lackingNodeHeight = newTotalHeight[i] - newBedrockHeight[i] - nrNodes
+                for j in range(math.ceil(lackingNodeHeight)):
+                    nodeSedContent[i].append(_nbZeros_1d(nrOfGrainSizes))
+                    nodeFill[i].append(0.)
+                    
+            oldNodeFills = nodeFill[i].copy()
+            for f in range(nrOfGrainSizes):
+                nodeFill, nodeSedContent = depositNodes(sedContentChange[f], i, f, flowFractions[f], nodeFill, nodeSedContent, oldNodeFills)
+            
+            # toBeDeposited = np.sum(sedContentChange)
+            # j = len(nodeFill[i])-1
+            # while (toBeDeposited > 0):
+                # currentNodeFill = nodeFill[i][j]
+                # currentNodeSedContent = nodeSedContent[i][j]
+                # # import pdb; pdb.set_trace()
+                    
+                    # ## Todo depositTime.append(_nbZeros_1d(1))
                 
+                # ## Note: newNodeSedContent must be set before newNodeDensity, for the variable depositDensity is altered in setting newNodeDensity and must be used unaltered when setting newNodeSedContent
+                # ## Set new nodeSedContent:
+                # # if i ==0: import pdb; pdb.set_trace()
+                # if (currentNodeFill + toBeDeposited > 1): ## Cross a node boundary
+                    # nodeSedContent[i].append(_nbZeros_1d(nrOfGrainSizes))
+                    # nodeFill[i].append(0.)
+                    # remainingNodeFill = 1.-currentNodeFill
+                    # for f in range(nrOfGrainSizes):
+                        # newNodeSedContent = currentNodeSedContent[f] + remainingNodeFill * flowFractions[f]
+                        # nodeSedContent[i][j][f] = newNodeSedContent
+                    # nodeFill[i][j] = nodeFill[i][j] + remainingNodeFill
+                    # toBeDeposited -= remainingNodeFill
+                        
+                        # # column["nodes"][j].update({"depositionTimeInYears":t/yr2sec})
+                # else: ## Change stays within one node:
+                    # for f in range(nrOfGrainSizes):
+                        # newNodeSedContent = currentNodeSedContent[f] + toBeDeposited * flowFractions[f]
+                        # nodeSedContent[i][j][f] = newNodeSedContent
+                    # nodeFill[i][j] += toBeDeposited
+                    # toBeDeposited = 0
+                        
+                    # # if(sum(current_nodeSedContent) == 0):
+                        # # column["nodes"][j].update({"depositionTimeInYears":t/yr2sec})
+                # j+=1
         ## Erosion ##
         elif (onlyErosion):  ## Erosion
             if (trace): print("ONLY EROSION", i)
+            sedContentChange = np.zeros(shape=(nrOfGrainSizes))
         
+            for f in range(nrOfGrainSizes):
+                sedContentChange[f] = newSedContent[i][f] - totalSedContent[i][f] ##Negative for erosion
+            
+            # nodeFill, nodeSedContent = checkNodes(i, nodeFill, nodeSedContent)            
+            for f in range(nrOfGrainSizes):
+                if sedContentChange[f] < 0:
+                    maxNode = math.floor(totalHeight[i]-bedrockHeight[i])
+                    nodeFill, nodeSedContent = erodeNodes(-sedContentChange[f], i, f, nodeFill, nodeSedContent, maxNode)
+    
         ## Both Deposition and Erosion ##
         else: 
             if (trace): print("Both Deposition and Erosion", i)
-        
-        
-    return nodes
+            flowFractions = np.zeros(shape=nrOfGrainSizes)
+            # sedContentChange = nbStackedLists((imax+1, nrOfGrainSizes))
+            sedContentChange = np.zeros(shape=(nrOfGrainSizes))
+            
+            for f in range(nrOfGrainSizes):
+                sedContentChange[f] = (newSedContent[i][f]-newBedrockHeight[i]) - (totalSedContent[i][f]-bedrockHeight[i])
+                
+            for f in range (nrOfGrainSizes):  ## Note: This only works with two grain sizes        
+                if (sedContentChange[f] > 0):
+                    flowFractions[f] = 1
+                else:
+                    flowFractions[f] = 0
+            
+            ## Erode
+            for f in range(nrOfGrainSizes):
+                if sedContentChange[f] < 0:
+                    maxNode = math.floor(totalHeight[i]-bedrockHeight[i])
+                    nodeFill, nodeSedContent = erodeNodes(-sedContentChange[f], i, f, nodeFill, nodeSedContent, maxNode)
+            
+            # Since material has been eroded, the column has to be checked for non-full nodes
+            # nodeFill, nodeSedContent = checkNodes(i, nodeFill, nodeSedContent)
+            
+            # import pdb; pdb.set_trace()
+            nrNodes = len(nodeFill[i])-1
+            if (nrNodes < newTotalHeight[i]-newBedrockHeight[i]):
+                lackingNodeHeight = newTotalHeight[i] - newBedrockHeight[i] - nrNodes
+                for j in range(math.ceil(lackingNodeHeight)):
+                    nodeSedContent[i].append(_nbZeros_1d(nrOfGrainSizes))
+                    nodeFill[i].append(0.)
+            
+            oldNodeFills = nodeFill[i].copy()
+            for f in range(nrOfGrainSizes):
+                if sedContentChange[f] > 0:
+                    nodeFill, nodeSedContent = depositNodes(sedContentChange[f], i, f, flowFractions[f], nodeFill, nodeSedContent, oldNodeFills)
+            
+        # nodeFill, nodeSedContent = checkNodes(i, nodeFill, nodeSedContent)
+    return nodeFill, nodeSedContent
+
+def setPeriodicForcingValues(t, nrOfGrainSizes, periods, amplitudes, averages, minval="NULL"):
+    if (type(periods) == list):
+        if (len(periods) == 0 or len(amplitudes) == 0 or len(averages) == 0):
+            print("Error, input given for setPeriodicForcingsubsidenceRate is not sufficient.")
+            exit()
+        if (len(periods) != len(amplitudes) or len(periods) != len(averages)):
+            print("Error, the number of periods, amplitudes and averages must be the same. You supplied: nr of periods="+str(len(periods))+", nr of amplitudes="+str(len(amplitudes))+"and nr of averages="+str(len(averages))+".")
+            exit()
+    
+    if (type(periods) != list):
+        value = amplitudes*math.sin(2*3.1415 * t * 1/periods)+averages
+        if (minval!="NULL"): value = max(minval, value)
+    else: ## If multiple values are supplied
+        value = 0
+        for i in range(len(periods)):
+            value += amplitudes[i]*math.sin(2*3.1415 * t * 1/periods[i])+averages[i]
+        if (minval!="NULL"): value = max(minval, value)
+    return value
 
 
 if __name__=="__main__":
     
-    print("Initializing...")
+    print("Compiling...", end='\r')
     makeDirectories()
     ## Remove old data files
     nr_topo_files = len(os.listdir("ISMolD_outputdata/relief")) #-1 since file starts at 'output0', add -1 for any subdirectory
@@ -460,6 +695,11 @@ if __name__=="__main__":
     
     t= 0
     while (t <= tmax):
+        
+        ###     setPeriodicForcingValues(t, nrOfGrainSizes, periods, amplitudes, averages, minval="NULL")   note: mival is optional!
+        q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [0.5*tmax], [2.0e-7] , [4.0e-7], 0)
+        q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [0.5*tmax], [1.0e-7] , [3.0e-7], 0)
+    
         if (sum(k) == 0):
             print("\n\nFatal Error, there is no sediment transport at all this timestep. \nThis is not allowed, for dt approaches infinity if sum(k)=0. \nTime of error:", t/yr2sec, "yr")
             exit()
@@ -473,32 +713,35 @@ if __name__=="__main__":
                 exit()
         
         dt = setTimestep(totalHeight)
-        
+        subsidenceRate = 2e-5
         #Call FTCS to obtain the new height profile
-        newTotalHeight, newBedrockHeight, newTotalSedContent = FTCS(totalHeight, bedrockHeight, totalSedContent, nodeFill, nodeSedContent)
-        # import pdb; pdb.set_trace()
-        newTotalHeight, newBedrockHeight = subsidence(newTotalHeight, newBedrockHeight)
-        # nodes = setNodes(heights, newHeights, totalSedContent, newTotalSedContent,  nodes)
+        newTotalHeight, newTotalSedContent = FTCS(totalHeight, bedrockHeight, totalSedContent, nodeFill, nodeSedContent, q0, subsidenceRate)
         
+        # import pdb; pdb.set_trace()
+        newTotalHeight, newBedrockHeight = subsidence(newTotalHeight, bedrockHeight, subsidenceRate)
+        nodeFill, nodeSedContent = setNodes(totalHeight, bedrockHeight, newTotalHeight, newBedrockHeight, totalSedContent, newTotalSedContent, nodeFill, nodeSedContent)
+        # import pdb; pdb.set_trace()
+        # for i in range(imax):
+            # nodeFill, nodeSedContent = checkNodes(i, nodeFill, nodeSedContent)
         totalHeight = newTotalHeight
         bedrockHeight = newBedrockHeight
         totalSedContent = newTotalSedContent
         
-        
         if (t >= tout):
-            writeOutput(totalHeight, bedrockHeight, totalSedContent)
+            nodeOutputTimestep = writeOutput(totalHeight, bedrockHeight, totalSedContent, nodeSedContent, nodeOutputTimestep, outputTimestep)
             tout += dtout
             # tout = writeOutput(imax, nrOfGrainSizes, totalHeight, heights['totalSedContent_'+str(f)], totalInput, InputPerGrainSize, OutputPerGrainSize, q0, sedOut, tout, dtout, outputTimestep)
             outputTimestep += 1
         t += dt
         
         if t > tout_progress:
-            print("      "+str( (math.ceil(100000*t/tmax))/1000 )+"%", end="\r") ##Track progress
+            print("      "+str( (math.ceil(100000*t/tmax))/1000 )+"%".ljust(30), end="\r") ##Track progress
             tout_progress += dtout_progress
     
     # for i in range(5):
         # printNodes(i, nodes, totalHeight[i], heights['totalSedContent_'+str(f)][i])
     printElapsedTime(time()-start)
+    import pdb; pdb.set_trace()
     
 
 
