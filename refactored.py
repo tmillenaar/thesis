@@ -12,8 +12,8 @@ yr2sec = 60*60*24*365.25          #nr of seconds in a year
 
 dx              = 1e3             # width of each node/column (m)
 imax            = 100             # number of nodes
-tmax            = 100000*yr2sec    # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
-dtout           = tmax/10        # nr of years between write output
+tmax            = 150000*yr2sec    # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+dtout           = tmax/30        # nr of years between write output
 dtout_progress  = 100*yr2sec       # nr of years between progress bar update
 
         
@@ -201,13 +201,13 @@ tout_progress = 2*dtout_progress    # threshold to update progress bar, will be 
 outputTimestep = 0
 
 @njit(cache=True)
-def setTimestep(totalHeight):
+def setTimestep(totalHeight, bedrockHeight):
     """ Calculating the maximum timestep (dt) as limited by the active layer and the FTCS scheme. """
     dtFTCS = 0.9*(dx*dx)/(2.e0*((k[0]+k[1]))) ##FTCS
-    maxHeightDiff = totalHeight[0]+(q0[0]+q0[1])*dtFTCS/dx-totalHeight[1] ## dtFTCS is used here as an estimation on the high side. It is better to estimate more sediment input resulting in a high slope then it is to estimate on the low side. A too low estimate of the sediment input can lead to an amount of sediment being removed somewhere that is more the the depth of the active layer. Higher estimates of q0 result in lowe dt and thus a slower run speed.
+    maxHeightDiff = (totalHeight[0]-bedrockHeight[0])+(q0[0]+q0[1])*dtFTCS/dx-(totalHeight[1]-bedrockHeight[1]) ## dtFTCS is used here as an estimation on the high side. It is better to estimate more sediment input resulting in a high slope then it is to estimate on the low side. A too low estimate of the sediment input can lead to an amount of sediment being removed somewhere that is more the the depth of the active layer. Higher estimates of q0 result in lowe dt and thus a slower run speed.
     
     for i in range(1,imax):
-        localSlope = (totalHeight[i-1] - totalHeight[i])/dx 
+        localSlope = ((totalHeight[i-1]-bedrockHeight[i-1]) - (totalHeight[i] - bedrockHeight[i]))/dx 
         if (localSlope > maxHeightDiff): maxHeightDiff = localSlope
     
     ## Obtain minimum dt
@@ -265,7 +265,7 @@ def FTCS(totalHeight, bedrockHeight, totalSedContent, nodeFill, nodeSedContent, 
             #import pdb; pdb.set_trace()
             if (i==0): 
                 #import pdb; pdb.set_trace()
-                if (totalHeight[0] >= totalHeight[1]): ## Slope goes down to the right
+                if ((totalHeight[0]) >= (totalHeight[1])): ## Slope goes down to the right
                     sedIn[0][f] = q0[f]*dt/dx
                     # totalSedIn -= q0[f]*dt/dx
                 else: ## Slope goes down to the left
@@ -273,17 +273,17 @@ def FTCS(totalHeight, bedrockHeight, totalSedContent, nodeFill, nodeSedContent, 
                     # totalSedIn -= q0[f]*dt/dx
                     sedOut[0][f] = 0
             else:
-                if (totalHeight[i-1] > totalHeight[i]): ## Slope goes down to the right
-                    transport = ( (Dph*dt)/(dx*dx) )*( totalHeight[i-1] - (totalHeight[i]) )
+                if ((totalHeight[i-1]) > (totalHeight[i])): ## Slope goes down to the right
+                    transport = ( (Dph*dt)/(dx*dx) )*( (totalHeight[i-1]) - (totalHeight[i]) )
                     #transport = nbmin((transport, heights['totalSedContent_'+str(f)][i-1]))
                     transport = nbmin((transport, sedContentInActiveLayer(nodeFill, nodeSedContent, i-1)[f]))
                     transport = min(transport, totalSedContent[i-1][f])
                     sedOut[i-1][f] += transport
                     sedIn[i][f] += transport
 
-                elif (totalHeight[i-1] < totalHeight[i]): ## Slope goes down to the left
+                elif ((totalHeight[i-1]) < (totalHeight[i])): ## Slope goes down to the left
                     transport = ( (Dph*dt)/(dx*dx) )*( (totalHeight[i]) - (totalHeight[i-1]) )
-                    transport = nbmin((transport, sedContentInActiveLayer(nodeFill, nodeSedContent, i-1)[f]))
+                    transport = nbmin((transport, sedContentInActiveLayer(nodeFill, nodeSedContent, i)[f]))
                     # transport = nbmin((transport, totalSedContent[i-1][f]))
                     sedOut[i][f] += transport
                     sedIn[i-1][f] += transport
@@ -295,12 +295,13 @@ def FTCS(totalHeight, bedrockHeight, totalSedContent, nodeFill, nodeSedContent, 
     
     ## Set new height
     for i in range(imax+1): 
-        newTotalHeight[i] = totalHeight[i]
+        # newTotalHeight[i] = totalHeight[i]
+        newTotalHeight[i] = bedrockHeight[i] #old totalSedContent is added later along with current changes
         for f in range(nrOfGrainSizes):
             newSedContent[i][f] = totalSedContent[i][f] + sedIn[i][f]-sedOut[i][f]
-            newTotalHeight[i] += sedIn[i][f]-sedOut[i][f]
-        if (newTotalHeight[i] < 0):
-            newTotalHeight[i] = 0
+            newTotalHeight[i] += totalSedContent[i][f] + sedIn[i][f]-sedOut[i][f]
+        if (newTotalHeight[i] < bedrockHeight[i]):
+            newTotalHeight[i] = bedrockHeight[i]
     
     ## Set boundary condition at distal the end
     newTotalHeight[imax] = 0
@@ -319,11 +320,12 @@ def FTCS(totalHeight, bedrockHeight, totalSedContent, nodeFill, nodeSedContent, 
     return newTotalHeight, newSedContent, totalInput, totalOutput
 
 @njit(cache=True)
-def subsidence (totalHeight, bedrockHeight, subsidenceRate):
+def subsidence (totalHeight, bedrockHeight, subsidenceRate, dt):
     for i in range(imax+1):
         bedrockHeight[i] -= subsidenceRate*(imax-i)
         #columns[i]["oldHeight"] = nbmax( columns[i]["oldHeight"]-subsidenceRate*(imax-i) , bedrockHeight[i])
-        totalHeight[i] = nbmax(( totalHeight[i]-subsidenceRate*(imax-i) , bedrockHeight[i] )) 
+        # totalHeight[i] = nbmax(( totalHeight[i]-subsidenceRate*(imax-i) , bedrockHeight[i] )) 
+        totalHeight[i] -= subsidenceRate*(imax-i)
   
     return totalHeight, bedrockHeight
 
@@ -419,7 +421,7 @@ def writeOutput(totalHeight, bedrockHeight, totalSedContent, nodeSedContent, nod
 @njit(cache=True)
 def depositNodes(sedContentChange, i, f, flowFraction, nodeFill, nodeSedContent, oldNodeFills):
     trace = False
-    j = math.floor(totalHeight[i]-bedrockHeight[i])
+    j = nbmax((math.floor(totalHeight[i]-bedrockHeight[i]), 0))
     toBeDeposited = sedContentChange
     while (toBeDeposited > 0):
         currentNodeFill = oldNodeFills[j]
@@ -456,12 +458,12 @@ def depositNodes(sedContentChange, i, f, flowFraction, nodeFill, nodeSedContent,
     
 @njit(cache=True)
 def erodeNodes(toBeEroded, i, f, nodeFill, nodeSedContent, maxNode):
-    # j = math.floor(totalHeight[i]-bedrockHeight[i])
-    j = maxNode
+    # j = nbmax((math.floor(totalHeight[i]-bedrockHeight[i]), 0))
+    j = nbmax((len(nodeFill[i])-1, 0))
     # if totalHeight[i] > 1: 
     # print('New maxNode:', j, 'i:', i, totalHeight[i], totalHeight[i], totalHeight[i]-bedrockHeight[i])
     while (toBeEroded > 0):
-        if totalHeight[i] > 1: print('i:', i, 'j:', j, 'f:', f, 't: ', t)
+        # if totalHeight[i] > 1: print('i:', i, 'j:', j, 'f:', f, 't: ', t)
         currentNodeSedContent = nodeSedContent[i][j][f]
         # import pdb; pdb.set_trace()
         if (toBeEroded > currentNodeSedContent): ## Cross a node boundary
@@ -614,7 +616,7 @@ def setNodes(totalHeight, bedrockHeight, newTotalHeight, newBedrockHeight, total
             # nodeFill, nodeSedContent = checkNodes(i, nodeFill, nodeSedContent)            
             for f in range(nrOfGrainSizes):
                 if sedContentChange[f] < 0:
-                    maxNode = math.floor(totalHeight[i]-bedrockHeight[i])
+                    maxNode = nbmax((math.floor(totalHeight[i]-bedrockHeight[i]), 0))
                     nodeFill, nodeSedContent = erodeNodes(-sedContentChange[f], i, f, nodeFill, nodeSedContent, maxNode)
     
         ## Both Deposition and Erosion ##
@@ -636,7 +638,7 @@ def setNodes(totalHeight, bedrockHeight, newTotalHeight, newBedrockHeight, total
             ## Erode
             for f in range(nrOfGrainSizes):
                 if sedContentChange[f] < 0:
-                    maxNode = math.floor(totalHeight[i]-bedrockHeight[i])
+                    maxNode = nbmax((math.floor(totalHeight[i]-bedrockHeight[i]), 0))
                     nodeFill, nodeSedContent = erodeNodes(-sedContentChange[f], i, f, nodeFill, nodeSedContent, maxNode)
             
             # Since material has been eroded, the column has to be checked for non-full nodes
@@ -671,10 +673,20 @@ def trackMassBalance(totalInput, totalOutput, totalHeight, q0, k, nodeFill, node
     return totalInput, totalOutput
 
 @njit(cache=True)    
-def totalVolumeInDeposit(totalHeight, bedrockHeight):
+def totalVolumeInDeposit_totalHeight(totalHeight, bedrockHeight):
     volumeInDeposit = 0
     for i in range(len(totalHeight)+1):
         volumeInDeposit += (totalHeight[i]-bedrockHeight[i])*dx
+    
+    return volumeInDeposit
+
+# @njit(cache=True)    
+def totalVolumeInDeposit_totalSedContent(totalSedContent):
+    volumeInDeposit = 0
+    import pdb; pdb.set_trace()
+    for i in range(imax+1):
+        for f in range(nrOfGrainSizes):
+            volumeInDeposit += totalSedContent[i, nrOfGrainSizes]*dx
     
     return volumeInDeposit
     
@@ -725,8 +737,8 @@ if __name__=="__main__":
     while (t <= tmax):
         
         ###     setPeriodicForcingValues(t, nrOfGrainSizes, periods, amplitudes, averages, minval="NULL")   note: mival is optional!
-        # q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [0.5*tmax], [2.0e-7] , [4.0e-7], 0)
-        # q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [0.5*tmax], [1.0e-7] , [3.0e-7], 0)
+        q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [tmax/4], [2.0e-7] , [4.0e-7], 0)
+        q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [tmax/4], [1.0e-7] , [3.0e-7], 0)
     
         if (sum(k) == 0):
             print("\n\nFatal Error, there is no sediment transport at all this timestep. \nThis is not allowed, for dt approaches infinity if sum(k)=0. \nTime of error:", t/yr2sec, "yr")
@@ -740,13 +752,13 @@ if __name__=="__main__":
                 print("Error, negative input. t=", str(t/yr2sec)+"yr", "q0["+str(i)+"]="+str(q0[i]))
                 exit()
         
-        dt = setTimestep(totalHeight)
-        subsidenceRate = 2e-5
+        dt = setTimestep(totalHeight, bedrockHeight)
+        subsidenceRate = 4e-6*dt/yr2sec
         #Call FTCS to obtain the new height profile
         newTotalHeight, newTotalSedContent, totalInput, totalOutput = FTCS(totalHeight, bedrockHeight, totalSedContent, nodeFill, nodeSedContent, q0, k, totalInput, totalOutput, dt)
         # totalInput, totalOutput = trackMassBalance(totalInput, totalOutput, totalHeight, q0, k, nodeFill, nodeSedContent)
         # import pdb; pdb.set_trace()
-        newTotalHeight, newBedrockHeight = subsidence(newTotalHeight, bedrockHeight, subsidenceRate)
+        newTotalHeight, newBedrockHeight = subsidence(newTotalHeight, bedrockHeight, subsidenceRate, dt)
         nodeFill, nodeSedContent = setNodes(totalHeight, bedrockHeight, newTotalHeight, newBedrockHeight, totalSedContent, newTotalSedContent, nodeFill, nodeSedContent)
         # import pdb; pdb.set_trace()
         # for i in range(imax):
@@ -768,12 +780,17 @@ if __name__=="__main__":
     
     # for i in range(5):
         # printNodes(i, nodes, totalHeight[i], heights['totalSedContent_'+str(f)][i])
-    volInDeposits = totalVolumeInDeposit(totalHeight, bedrockHeight)
+    volInDeposits_totalHeight = totalVolumeInDeposit_totalHeight(totalHeight, bedrockHeight)
+    # volInDeposits_totalSedContent = totalVolumeInDeposit_totalSedContent(totalSedContent)
+    volInDeposits_totalSedContent = sum([dx*np.sum(fill) for fill in nodeSedContent])
     print('Total Input:', totalInput)
     print('Total Output:', totalOutput) 
-    print('Volume of deposits:', volInDeposits)
-    print('Difference:',  totalInput-volInDeposits-totalOutput)
-    print('Difference in %:',  100*(totalInput-volInDeposits-totalOutput)/totalInput)
+    print('Volume of deposits based on totalHeight:', volInDeposits_totalHeight)
+    print('Volume of deposits based on totalSedContent:', volInDeposits_totalSedContent)
+    print('Difference:',  totalInput-volInDeposits_totalHeight-totalOutput)
+    print('Difference in %:',  100*(totalInput-volInDeposits_totalHeight-totalOutput)/totalInput)
+    print('')
+    print('Difference in % based on totalSedContent:',  100*(totalInput-volInDeposits_totalSedContent-totalOutput)/totalInput)
     printElapsedTime(time()-start)
     import pdb; pdb.set_trace()
     

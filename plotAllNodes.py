@@ -62,10 +62,10 @@ else:
 totalElapsedTime = 0
 for i in range(nrColumns):
     data = np.loadtxt("ISMolD_outputdata/nodes/time"+str(max_timestep)+"/column"+str(i)+".txt") 
-    try:
-        totalElapsedTime = max( max(data[:,5]), totalElapsedTime)
-    except: ## Triggers if the data file has only one line
-        totalElapsedTime = max( data[5], totalElapsedTime)
+    # try:
+        # totalElapsedTime = max( max(data[:,5]), totalElapsedTime)
+    # except: ## Triggers if the data file has only one line
+        # totalElapsedTime = max( data[5], totalElapsedTime)
 
 for t in range(max_timestep):
 

@@ -43,7 +43,7 @@ enableSubsidence = True
 
 dx= 1e3                      # width of each node/column (m)
 imax= 100                     # number of nodes
-tmax= 100000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
+tmax= 50000*yr2sec             # total amount of time to be modelled in seconds [in years = (x*yr2sec)]
 dtout = tmax/100              # nr of years between write output
 dtout_progress = 10*yr2sec    # nr of years between progress bar update
 
@@ -64,8 +64,8 @@ def setBoudnaryCondtitionValues(t, tmax, nrOfGrainSizes):
     ###     setPeriodicForcingValues(t, nrOfGrainSizes, periods, amplitudes, averages, minval="NULL")   note: mival is optional!
     #q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [(tmax/4), 50000*yr2sec], [2.0e-6, -0.0e-6] , [2.0e-6, 0.2e-6], 0)
     #q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [(tmax/4), 50000*yr2sec], [1.0e-6, -0.0e-6] , [1.0e-6, 0.2e-6], 0)
-    q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [0.5*tmax], [2.0e-7] , [4.0e-7], 0)
-    q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [0.5*tmax], [1.0e-7] , [3.0e-7], 0)
+    # q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, [0.5*tmax], [2.0e-7] , [4.0e-7], 0)
+    # q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [0.5*tmax], [1.0e-7] , [3.0e-7], 0)
     
     #q0[0] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 4.0e-7 , 6.0e-7, 0)
     #q0[1] = setPeriodicForcingValues(t, nrOfGrainSizes, (tmax/4), 4.0e-7 , 4.5e-7, 0)
@@ -81,7 +81,7 @@ def setBoudnaryCondtitionValues(t, tmax, nrOfGrainSizes):
     #k[1] = setPeriodicForcingValues(t, nrOfGrainSizes, [20000*yr2sec, 60000*yr2sec], [2*3.2e-4, 1*3.2e-4] , [2*3.2e-4, 2*3.2e-4], 0)
     
     #subsidenceRate = setPeriodicForcingValues(t, nrOfGrainSizes, tmax, 2e-5, 3e-7)
-    subsidenceRate = 0#2e-6
+    subsidenceRate = 4e-6#0#2e-6
     #k[0]= 4*3.2e-4                # Gravel diffusivity (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
     #k[1]= 5*3.2e-4                # Sand diffusivity (m2/s)  Attention: will be overwritten in setBoudnaryCondtitionValues if declared there!
     return q0, k, subsidenceRate
