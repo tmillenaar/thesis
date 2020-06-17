@@ -105,7 +105,7 @@ ax.invert_yaxis()
 plt.tight_layout(rect=[0,0,0.85,1])
 
 def update(t):
-    ax.set_title("Sediment content per node. Time: "+str(t*3)+"kyr")
+    
     if (t == (max_timestep-1)):
         print("Saving animation ...                                                        ", end="\r")
     else:
@@ -123,10 +123,20 @@ def update(t):
             data = np.loadtxt("ISMolD_outputdata/nodes/time"+str(t)+"/column"+str(i)+".txt")
     heatmapData = np.zeros(shape=(detailFactor*upperBound-detailFactor*lowerBound, detailFactor*nrColumns))
     
+    max_time = 0
+    
     for i in range(nrColumns):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             columnData = np.loadtxt("ISMolD_outputdata/nodes/time"+str(t)+"/column"+str(i)+".txt") ## nodeID, totalHeight, gravel, sand
+            if (len(columnData) == 0):
+                pass
+            elif (len(columnData) == 6): 
+                #import pdb; dpb.set_trace()
+                max_time = max(max_time, np.max(columnData[5]))
+            else:
+                # import pdb; pdb.set_trace()
+                max_time = max(max_time, np.max(columnData[:, 5]))
         for j in range(len(columnData)):
             for l in range(detailFactor):
                 xmodifier = detailFactor*i+l
@@ -138,6 +148,9 @@ def update(t):
                         heatmapData[k-detailFactor*lowerBound+math.ceil(detailFactor*columnData[2]),xmodifier] = columnData[3]
     im.set_data(heatmapData)
     im.set_clim(vmin=0, vmax=1)
+    
+    ax.set_title("Sediment content per node. Time: "+str(int(max_time/100)/10)+"kyr")
+    
     return im
 
 # FuncAnimation will call the 'update' function for each frame; here
